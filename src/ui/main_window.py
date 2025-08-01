@@ -286,24 +286,23 @@ class MainWindow(QMainWindow):
         self.pickup_repick_row = 6
         self.pickup_track_row = 7
         self.pickup_pitck_row = 8
-        self.pickup_feeder_time_row = 9
-        self.pickup_z_down_row = 10
-        self.pickup_z_up_row = 11
-        self.pickup_dp_angle_row = 12
-        self.pickup_vacuum_before_row = 13
-        self.pickup_vacuum_after_row = 14
-        self.pickup_holding_row = 15
-        self.pickup_error_in_z_row = 16
-        self.pickup_stay_time_row = 17
-        self.pickup_measure_height_row = 18
+        #self.pickup_feeder_time_row = 
+        self.pickup_z_down_row = 9
+        self.pickup_z_up_row = 10
+        self.pickup_dp_angle_row = 11
+        self.pickup_vacuum_before_row = 12
+        self.pickup_vacuum_after_row = 13
+        self.pickup_holding_row = 14
+        #self.pickup_error_in_z_row = 
+        #self.pickup_stay_time_row = 
+        self.pickup_measure_height_row = 15
         
         # Set row labels
         row_labels = [
             "Time", "Machine", "Head", "Segment", "Nozzle",
-            "Component", "Repick", "Track", "Pitch", "Feeder Time",
+            "Component", "Repick", "Track", "Pitch",
             "Z Down", "Z Up", "DP Angle", "Vacuum Before",
-            "Vacuum After", "Holding", "Error In Z", "Stay Time",
-            "Measure Height"
+            "Vacuum After", "Holding", "Measure Height"
         ]
         for i, label in enumerate(row_labels):
             self.pickup_table.setItem(i, 0, QTableWidgetItem(label))
@@ -325,41 +324,39 @@ class MainWindow(QMainWindow):
         
         # Define row indices
         self.placement_time_row = 0
-        self.placement_machine_row = 1
-        self.placement_head_row = 2
-        self.placement_lane_row = 3
-        self.placement_segment_row = 4
-        self.placement_nozzle_row = 5
-        self.placement_conponent_row = 6
-        self.placement_measure_x_row = 7
-        self.placement_measure_y_row = 8
-        self.placement_measure_phi_row = 9
-        self.placement_theroy_size_row = 10
-        self.placement_actual_size_row = 11
-        self.placement_error_in_z_row = 12
-        self.placement_z_end_row = 13
-        self.placement_z_down_row = 14
-        self.placement_z_up_row = 15
-        self.placement_vacuum_before_row = 16
-        self.placement_vacuum_after_row = 17
-        self.placement_holding_row = 18
-        self.placement_airkiss_pro_row = 19
-        self.placement_airkiss_machine_row = 20
-        self.placement_airkiss_measured_row = 21
-        self.placement_airkiss_time_row = 22
-        self.placement_stay_time_row = 23
-        self.placement_order_current_machine_row = 24
-        self.placement_recipe_row = 25
+        #self.placement_machine_row = 
+        #self.placement_head_row = 
+        self.placement_lane_row = 1
+        #self.placement_segment_row = 
+        #self.placement_nozzle_row = 
+        #self.placement_conponent_row = 
+        self.placement_measure_x_row = 2
+        self.placement_measure_y_row = 3
+        self.placement_measure_phi_row = 4
+        self.placement_theroy_size_row = 5
+        self.placement_actual_size_row = 6
+        self.placement_error_in_z_row = 7
+        self.placement_z_end_row = 8
+        self.placement_z_down_row = 9
+        self.placement_z_up_row = 10
+        self.placement_vacuum_before_row = 11
+        self.placement_vacuum_after_row = 12
+        self.placement_holding_row = 13
+        self.placement_airkiss_pro_row = 14
+        self.placement_airkiss_machine_row = 15
+        self.placement_airkiss_measured_row = 16
+        #self.placement_airkiss_time_row = 17
+        #self.placement_stay_time_row = 
+        #self.placement_order_current_machine_row = 
+        self.placement_recipe_row = 17
         
         # Set row labels
         row_labels = [
-            "Time", "Machine", "Head", "Lane", "Segment", "Nozzle",
-            "Component", "Measure X", "Measure Y", "Measure Phi",
+            "Time", "Lane", "Measure X", "Measure Y", "Measure Phi",
             "Theory Size", "Actual Size", "Error In Z", "Z End",
             "Z Down Profile", "Z Up Profile", "Vacuum Before",
             "Vacuum After", "Holding", "Airkiss Profile",
-            "Airkiss Machine", "Airkiss Measured", "Airkiss Time",
-            "Stay Time", "Order Current Machine", "Recipe"
+            "Airkiss Machine", "Airkiss Measured", "Recipe"
         ]
         for i, label in enumerate(row_labels):
             self.placement_table.setItem(i, 0, QTableWidgetItem(label))
@@ -403,6 +400,8 @@ class MainWindow(QMainWindow):
                     
                     # Get barcode
                     barcode = root.findtext(".//Barcode", "")
+                    if barcode == "":
+                        barcode = "N/A"
                     unique_key = f"{board_id}__{barcode}"
                     if unique_key not in self.barcode_items:
                         self.barcode_items.append(unique_key)
@@ -478,12 +477,7 @@ class MainWindow(QMainWindow):
                     if row not in [self.pickup_time_row, self.pickup_machine_row, self.pickup_head_row]:
                         self.pickup_table.setItem(row, 1, QTableWidgetItem(""))
 
-            if hasattr(self, "placement_table"):
-                for row in range(self.placement_table.rowCount()):
-                    if row not in [self.placement_time_row, self.placement_machine_row, 
-                                 self.placement_head_row, self.placement_lane_row]:
-                        self.placement_table.setItem(row, 1, QTableWidgetItem(""))
-
+            
             ref_name = ref_item.text()
             panel_name = panel_item.text()
 
@@ -518,45 +512,45 @@ class MainWindow(QMainWindow):
                                         self.pickup_table.setItem(self.pickup_repick_row, 1,
                                             QTableWidgetItem(component_node.findtext("RetryCount", "")))
                                         
-                                        ram_track = component_node.findtext("Pick/FeederData/locationKey", "")
-                                        if ram_track and len(ram_track) >= 4:
-                                            ram_track = ram_track[2:4]
-                                        self.pickup_table.setItem(self.pickup_track_row, 1, QTableWidgetItem(ram_track))
+                                ram_track = component_node.findtext("Pick/FeederData/locationKey", "")
+                                if ram_track and len(ram_track) >= 4:
+                                    ram_track = ram_track[2:4]
+                                    self.pickup_table.setItem(self.pickup_track_row, 1, QTableWidgetItem(ram_track))
                                                     
-                                        ram_pitch = component_node.findtext("Pick/FeederData/pitch", "")
-                                        if ram_pitch:
-                                            self.pickup_table.setItem(self.pickup_pitck_row, 1,
-                                                QTableWidgetItem(ram_pitch.replace(".", "")))
+                                ram_pitch = component_node.findtext("Pick/FeederData/pitch", "")
+                                if ram_pitch:
+                                    self.pickup_table.setItem(self.pickup_pitck_row, 1,
+                                        QTableWidgetItem(ram_pitch.replace(".", "")))
 
-                                        self.pickup_table.setItem(self.pickup_feeder_time_row, 1,
-                                            QTableWidgetItem("N/A"))
-                                        self.pickup_table.setItem(self.pickup_z_down_row, 1,
-                                            QTableWidgetItem(component_node.findtext("Pick/ZMovementDown/TravelProfile", "")))
-                                        self.pickup_table.setItem(self.pickup_z_up_row, 1,
-                                            QTableWidgetItem(component_node.findtext("Pick/ZMovementUp/TravelProfile", "")))
-                                        self.pickup_table.setItem(self.pickup_dp_angle_row, 1,
-                                            QTableWidgetItem(component_node.findtext("Pick/DpMovement/TargetPosition", "")))
-                                        self.pickup_table.setItem(self.pickup_vacuum_before_row, 1,
-                                            QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/MeasuredBefore", "")))
-                                        self.pickup_table.setItem(self.pickup_vacuum_after_row, 1,
-                                            QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/MeasuredAfter", "")))
-                                        self.pickup_table.setItem(self.pickup_holding_row, 1,
-                                            QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/HoldingCircuit", "")))
-                                        self.pickup_table.setItem(self.pickup_error_in_z_row, 1,
-                                            QTableWidgetItem("N/A"))
-                                        self.pickup_table.setItem(self.pickup_stay_time_row, 1,
-                                            QTableWidgetItem("N/A"))
-                                        self.pickup_table.setItem(self.pickup_measure_height_row, 1,
-                                            QTableWidgetItem(component_node.findtext("Pick/ComponentSensor/MeasuredHeight", "")))
+                                #self.pickup_table.setItem(self.pickup_feeder_time_row, 1,
+                                    #QTableWidgetItem("N/A"))
+                                self.pickup_table.setItem(self.pickup_z_down_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Pick/ZMovementDown/TravelProfile", "")))
+                                self.pickup_table.setItem(self.pickup_z_up_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Pick/ZMovementUp/TravelProfile", "")))
+                                self.pickup_table.setItem(self.pickup_dp_angle_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Pick/DpMovement/TargetPosition", "")))
+                                self.pickup_table.setItem(self.pickup_vacuum_before_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/MeasuredBefore", "")))
+                                self.pickup_table.setItem(self.pickup_vacuum_after_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/MeasuredAfter", "")))
+                                self.pickup_table.setItem(self.pickup_holding_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/HoldingCircuit", "")))
+                                #self.pickup_table.setItem(self.pickup_error_in_z_row, 1,
+                                    #QTableWidgetItem("N/A"))
+                                #self.pickup_table.setItem(self.pickup_stay_time_row, 1,
+                                    #QTableWidgetItem("N/A"))
+                                self.pickup_table.setItem(self.pickup_measure_height_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Pick/ComponentSensor/MeasuredHeight", "")))
 
                             # Update placement table
                             if hasattr(self, "placement_table"):
-                                self.placement_table.setItem(self.placement_segment_row, 1,
-                                    QTableWidgetItem(component_node.findtext("Segment", "")))
-                                self.placement_table.setItem(self.placement_nozzle_row, 1,
-                                    QTableWidgetItem(component_node.findtext("Nozzle", "")))
-                                self.placement_table.setItem(self.placement_conponent_row, 1,
-                                    QTableWidgetItem(component_name if 'component_name' in locals() else ""))
+                                #self.placement_table.setItem(self.placement_segment_row, 1,
+                                    #QTableWidgetItem(component_node.findtext("Segment", "")))
+                                #self.placement_table.setItem(self.placement_nozzle_row, 1,
+                                    #QTableWidgetItem(component_node.findtext("Nozzle", "")))
+                                #self.placement_table.setItem(self.placement_conponent_row, 1,
+                                    #QTableWidgetItem(component_name if 'component_name' in locals() else ""))
                                 
                                 measure_x = component_node.findtext("Measure/MeasuredPose/X", "")
                                 if measure_x:
@@ -617,12 +611,12 @@ class MainWindow(QMainWindow):
                                     QTableWidgetItem(component_node.findtext("Place/VacuumSystem/ParamThresholdDown", "")))
                                 self.placement_table.setItem(self.placement_airkiss_measured_row, 1,
                                     QTableWidgetItem(component_node.findtext("Place/VacuumSystem/MeasuredDown", "")))
-                                self.placement_table.setItem(self.placement_airkiss_time_row, 1,
-                                    QTableWidgetItem("N/A"))
-                                self.placement_table.setItem(self.placement_stay_time_row, 1,
-                                    QTableWidgetItem("N/A"))
-                                self.placement_table.setItem(self.placement_order_current_machine_row, 1,
-                                    QTableWidgetItem("N/A"))
+                                #self.placement_table.setItem(self.placement_airkiss_time_row, 1,
+                                    #QTableWidgetItem("N/A"))
+                                #self.placement_table.setItem(self.placement_stay_time_row, 1,
+                                    #QTableWidgetItem("N/A"))
+                                #self.placement_table.setItem(self.placement_order_current_machine_row, 1,
+                                    #QTableWidgetItem("N/A"))
                                     
                                 recipe_node = self.xml_root.find(".//Recipe")
                                 self.placement_table.setItem(self.placement_recipe_row, 1,
@@ -703,10 +697,10 @@ class MainWindow(QMainWindow):
                         if hasattr(self, "placement_table"):
                             self.placement_table.setItem(self.placement_time_row, 1,
                                 QTableWidgetItem(basic_info.get('EndPlacing', '')))
-                            self.placement_table.setItem(self.placement_machine_row, 1,
-                                QTableWidgetItem(basic_info.get('MachineId', '')))
-                            self.placement_table.setItem(self.placement_head_row, 1,
-                                QTableWidgetItem(basic_info.get('GantryId', '')))
+                            #self.placement_table.setItem(self.placement_machine_row, 1,
+                                #QTableWidgetItem(basic_info.get('MachineId', '')))
+                            #self.placement_table.setItem(self.placement_head_row, 1,
+                                #QTableWidgetItem(basic_info.get('GantryId', '')))
                             self.placement_table.setItem(self.placement_lane_row, 1,
                                 QTableWidgetItem(basic_info.get('Lane', '')))
 
