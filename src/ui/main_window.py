@@ -1,734 +1,368 @@
+import os
+from tokenize import group
+import xml.etree.ElementTree as ET
 from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QTabWidget, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QGroupBox, QLabel, QPushButton, QLineEdit, QMessageBox,
-    QListWidget, QSplitter, QHeaderView, QFileDialog, QApplication, QMenu
+    QMainWindow, QVBoxLayout, QHBoxLayout, QGroupBox, 
+    QPushButton, QFileDialog, QListWidget, QLabel,
+    QTableWidget, QTableWidgetItem, QHeaderView,
+    QLineEdit, QMessageBox, QWidget, QApplication,
+    QToolTip,
 )
 from PyQt5.QtCore import Qt
-import xml.etree.ElementTree as ET
+from PyQt5.QtGui import QCursor
+from PyQt5.QtWidgets import  QMenu
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Check XML Boardhistory")
-        self.setFixedSize(1000, 925)
+        self.init_variables()
+        self.init_ui()
+
+    def init_variables(self):
+        """Khởi tạo các biến thành viên"""
+        self.setWindowTitle("ASM BoardHistory (https://anhutc.github.io)")
+        self.setFixedSize(1200, 920)
         self.move(
-            (QApplication.desktop().screen().width() - self.width()) // 2,
-            (QApplication.desktop().screen().height() - self.height()) // 2
+            (QApplication.desktop().screen().width() - self.width()) // 2, 0
         )
-
-        # Widget và layout chính
-        main_widget = QWidget()
-        main_layout = QVBoxLayout(main_widget)  # Layout dọc cho toàn bộ cửa sổ
-
-        # Splitter ngang: bên trái là tab, bên phải là panel chức năng
-        splitter = QSplitter(Qt.Horizontal)
-
-        # Tab Pickup/Placement (bên trái)
-        tab_widget = QTabWidget()
-        tab_widget.addTab(self.create_pickup_tab(), "Pickup")
-        tab_widget.addTab(self.create_placement_tab(), "Placement")
-        tab_widget.setFixedWidth(780)
-        tab_widget.setFixedHeight(880)
-        tab_widget.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #90caf9;
-                border-radius: 8px;
-                background: #fafdff;
-                margin-top: 4px;
-            }
-            QTabBar::tab {
-                background: #e3f2fd;
-                color: #1565c0;
-                border: 1px solid #90caf9;
-                border-bottom: none;
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
-                min-width: 120px;
-                min-height: 32px;
-                font-size: 15px;
-                font-weight: bold;
-                margin-right: 4px;
-                margin-left: 2px;
-                padding: 3px 130px;
-            }
-            QTabBar::tab:selected {
-                background: #ffffff;
-                color: #1976d2;
-                border-bottom: 2px solid #ffffff;
-            }
-            QTabBar::tab:!selected {
-                margin-top: 4px;
-            }
-        """)
-        splitter.addWidget(tab_widget)
-
-        # Panel chức năng (bên phải)
-        find_board_panel = self.create_find_board_panel()
-        find_board_panel.setFixedWidth(200)
-        find_board_panel.setStyleSheet("""
-            QGroupBox {
-                border: none;
-            }
-        """)
-        splitter.addWidget(find_board_panel)
-        splitter.setStretchFactor(0, 3)  # Tab chiếm nhiều diện tích hơn
-        splitter.setStretchFactor(1, 1)
-        splitter.setHandleWidth(0)
-
-        # Thêm splitter vào layout chính
-        main_layout.addWidget(splitter)
-
-        # Footer (hiện đường dẫn file XML)
-        self.footer_label = QLabel("Check XML Boardhistory by DVA")
-        self.footer_label.setStyleSheet("""
-            QLabel {
-                color: #1976d2;
-                font-weight: bold;
-                font-size: 13px;
-                border-top: 1px solid #90caf9;
-                padding: 5px 20px;
-                font-style: italic;
-                letter-spacing: 0.5px;
-            }
-        """)
-        self.footer_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)  # Căn phải và giữa theo chiều dọc
-        main_layout.addWidget(self.footer_label)
-
-        self.setCentralWidget(main_widget)
-
-        # Thêm các biến để lưu trữ dữ liệu đã phân tích
-        self.xml_data = {}  # Dictionary lưu dữ liệu theo barcode
+        # Biến lưu trữ dữ liệu
+        self.xml_data = {}  # {barcode: {file_path, basic_info}}
         self.current_barcode = None
-
-    def set_table_column_ratio(self, table):
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        total_width = table.viewport().width()
-        table.setColumnWidth(0, int(total_width * 0.35))
-        table.setColumnWidth(1, int(total_width * 0.3))
-        table.setColumnWidth(2, int(total_width * 0.35))
-
-        # Ensure the ratio is maintained when resizing
-        def resizeEvent(event):
-            total_width = table.viewport().width()
-            table.setColumnWidth(0, int(total_width * 0.35))
-            table.setColumnWidth(1, int(total_width * 0.3))
-            table.setColumnWidth(2, int(total_width * 0.35))
-            QTableWidget.resizeEvent(table, event)
-        table.resizeEvent = resizeEvent
-
-    def create_pickup_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        table = QTableWidget()
-        items = [
-            ("Time", "", "取料动作发生的时间"),
-            ("Machine_Name_SN", "", "设备名称及序列号"),
-            ("Head", "", "取料头"),
-            ("Segment", "", "料段"),
-            ("Nozzle", "", "吸嘴编号"),
-            ("Conponent", "", "元件名称"),
-            ("Repick", "", "实际重复取料次数"),
-            ("Feeder Location/Track", "", "料站"),
-            ("Feeder Pitch", "", "Feeder步进距离(mm)"),
-            ("Feed Time (ms)", "", "送料时间(ms)"),
-            ("Z Move Down Profile", "", "Z轴下运动曲线：TP"),
-            ("Z Move Up Profile", "", "Z轴上运动曲线：TP"),
-            ("Dp Target Angle (degree)", "", "取料时，DP的目标角度"),
-            ("Vacuum before pick", "", "取料前，吸嘴的真空值"),
-            ("Vacuum after pick", "", "取料后，吸嘴的真空值"),
-            ("Holding value", "", "当前保持值"),
-            ("Pick ErrorInZ", "", "取料时，元件与贴片高度的误差"),
-            ("Pick Stay Time (ms)", "", "取料时，吸嘴停留在取料位置的时间(ms)"),
-            ("MeasureHeight (mm)", "", "元件厚度(mm)")
-        ]
-        table.setRowCount(len(items))
-        table.setColumnCount(3)
-        table.setHorizontalHeaderLabels(["Pickup_Process", "Pickup_Data", "Description"])
-        table.setStyleSheet("""
-            QTableWidget {
-                border: none;
-            }
-            QTableWidget::item {
-                padding: 4px 8px;
-            }
-        """)
-        for row, (name, value, desc) in enumerate(items):
-            table.setItem(row, 0, QTableWidgetItem(name))
-            table.setItem(row, 1, QTableWidgetItem(value))
-            table.setItem(row, 2, QTableWidgetItem(desc))
-            if name == "Time":
-                self.pickup_time_row = row
-            if name == "Machine_Name_SN":
-                self.pickup_machine_row = row
-            if name == "Head":
-                self.pickup_head_row = row  # Lưu lại vị trí dòng Head
-            if name == "Segment":
-                self.pickup_segment_row = row
-            if name == "Nozzle":
-                self.pickup_nozzle_row = row
-            if name == "Conponent":
-                self.pickup_conponent_row = row
-            if name == "Repick":
-                self.pickup_repick_row = row
-            if name == "Feeder Location/Track":
-                self.pickup_track_row = row
-            if name == "Feeder Pitch":
-                self.pickup_pitck_row = row
-            if name == "Feed Time (ms)":
-                self.pickup_feeder_time_row = row
-            if name == "Z Move Down Profile":
-                self.pickup_z_down_row = row
-            if name == "Z Move Up Profile":
-                self.pickup_z_up_row = row
-            if name == "Dp Target Angle (degree)":
-                self.pickup_dp_angle_row = row
-            if name == "Vacuum before pick":
-                self.pickup_vacuum_before_row = row
-            if name == "Vacuum after pick":
-                self.pickup_vacuum_after_row = row
-            if name == "Holding value":
-                self.pickup_holding_row = row
-            if name == "Pick ErrorInZ":
-                self.pickup_error_in_z_row = row
-            if name == "Pick Stay Time (ms)":
-                self.pickup_stay_time_row = row
-            if name == "MeasureHeight (mm)":
-                self.pickup_measure_height_row = row
-        layout.addWidget(table)
-        self.pickup_table = table  # Lưu lại table để cập nhật sau
-        self.pickup_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.set_table_column_ratio(table)
-        return widget
-
-    def create_placement_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        table = QTableWidget()
-        items = [
-            ("Time", "", "贴片动作发生的时间"),
-            ("Machine_Name_SN", "", "设备名称及序列号"),
-            ("Lane NO.", "", "传送轨道"),
-            ("Head", "", "贴片头"),
-            ("Segment", "", "料段"),
-            ("Nozzle", "", "吸嘴编号"),
-            ("Conponent", "", "元件名称"),
-            ("Measure Centering X", "", "元件实际吸取中心与理论中心的X距离"),
-            ("Measure Centering Y", "", "元件实际吸取中心与理论中心的Y距离"),
-            ("Measure Centering Angle (degree)", "", "元件实际吸取中心与理论中心的角度"),
-            ("Theroy Size Length x Width x Thickness", "", "元件理论尺寸"),
-            ("Actual Size Length x Width x Thickness", "", "元件实际尺寸"),
-            ("Place ErrorInZ", "", "元件实际吸取贴片高度与理论高度的误差"),
-            ("Place Z EndPosition", "", "元件实际贴片高度"),
-            ("Z Move Down Profile", "", "Z轴下运动曲线：TP"),
-            ("Z Move Up Profile", "", "Z轴上运动曲线：TP"),
-            ("Vacuum before Place", "", "贴片前，吸嘴的真空值"),
-            ("Vacuum after Place", "", "贴片后，吸嘴的真空值"),
-            ("Holding", "", "当前保持值"),
-            ("Airkiss in Pro", "", "Pro平台空气吹气"),
-            ("Airkiss in Machine", "", "设备空气吹气"),
-            ("Airkiss Measured", "", "空气吹气测量值"),
-            ("Air Kiss Time (ms)", "", "空气吹气时间(ms)"),
-            ("Place Stay Time (ms)", "", "贴片时，吸嘴停留在贴片位置的时间(ms)"),
-            ("Place order in current machine", "", "当前设备贴片顺序"),
-            ("Recipe", "", "程序名称")
-        ]
-        table.setRowCount(len(items))
-        table.setColumnCount(3)
-        table.setHorizontalHeaderLabels(["Place_Process", "Place_Data", "Description"])
-        table.setStyleSheet("""
-            QTableWidget {
-                border: none;
-            }
-            QTableWidget::item {
-                padding: 4px 8px;
-            }
-        """)
-        for row, (name, value, desc) in enumerate(items):
-            table.setItem(row, 0, QTableWidgetItem(name))
-            table.setItem(row, 1, QTableWidgetItem(value))
-            table.setItem(row, 2, QTableWidgetItem(desc))
-            if name == "Time":
-                self.placement_time_row = row
-            if name == "Machine_Name_SN":
-                self.placement_machine_row = row
-            if name == "Lane NO.":
-                self.placement_lane_row = row
-            if name == "Head":
-                self.placement_head_row = row  # Lưu lại vị trí dòng Head
-            if name == "Segment":
-                self.placement_segment_row = row
-            if name == "Nozzle":
-                self.placement_nozzle_row = row
-            if name == "Conponent":
-                self.placement_conponent_row = row
-            if name == "Measure Centering X":
-                self.placement_measure_x_row = row
-            if name == "Measure Centering Y":
-                self.placement_measure_y_row = row
-            if name == "Measure Centering Angle (degree)":
-                self.placement_measure_phi_row = row
-            if name == "Theroy Size Length x Width x Thickness":
-                self.placement_theroy_size_row = row
-            if name == "Actual Size Length x Width x Thickness":
-                self.placement_actual_size_row = row
-            if name == "Place ErrorInZ":
-                self.placement_error_in_z_row = row
-            if name == "Place Z EndPosition":
-                self.placement_z_end_row = row
-            if name == "Z Move Down Profile":
-                self.placement_z_down_row = row
-            if name == "Z Move Up Profile":
-                self.placement_z_up_row = row
-            if name == "Vacuum before Place":
-                self.placement_vacuum_before_row = row
-            if name == "Vacuum after Place":
-                self.placement_vacuum_after_row = row
-            if name == "Holding":
-                self.placement_holding_row = row
-            if name == "Airkiss in Pro":
-                self.placement_airkiss_pro_row = row
-            if name == "Airkiss Measured":
-                self.placement_airkiss_measured_row = row
-            if name == "Air Kiss Time (ms)":
-                self.placement_airkiss_time_row = row
-            if name == "Airkiss in Machine":
-                self.placement_airkiss_machine_row = row
-            if name == "Place Stay Time (ms)":
-                self.placement_stay_time_row = row
-            if name == "Place order in current machine":
-                self.placement_order_current_machine_row = row
-            if name == "Recipe":
-                self.placement_recipe_row = row
-        layout.addWidget(table)
-        self.placement_table = table  # Lưu lại table để cập nhật sau
-        self.placement_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.set_table_column_ratio(table)
-        return widget
-
-    def create_find_board_panel(self):
-        group = QGroupBox()
-        layout = QVBoxLayout(group)
-        layout.setSpacing(10)
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        # Định nghĩa các hàm filter trước
-        def filter_barcode_list(text):
-            self.barcode_list.clear()
-            for item in self.barcode_items:
-                if text.lower() in item.lower():
-                    self.barcode_list.addItem(item)
-
-        def filter_ref_list(text):
-            self.ref_list.clear()
-            for item in self.ref_items:
-                if text.lower() in item.lower():
-                    self.ref_list.addItem(item)
-
-        def filter_panel_list(text):
-            self.panel_list.clear()
-            for item in self.panel_items:
-                if text.lower() in item.lower():
-                    self.panel_list.addItem(item)
-
-        # Thêm nút Import Board (xml)
-        import_btn = QPushButton("Import Board (xml)")
-        import_btn.setStyleSheet("""
-            QPushButton {
-                font-weight: bold;
-                font-size: 15px;
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #e3f2fd, stop:1 #90caf9);
-                border: 1px solid #64b5f6;
-                border-radius: 6px;
-                padding: 8px 0;
-                height: 60px;
-            }
-            QPushButton:hover {
-                background: #bbdefb;
-            }
-        """)
-        layout.addWidget(import_btn)
-
-        # Thêm các thuộc tính vào self
         self.barcode_items = []
         self.ref_items = []
         self.panel_items = []
-
-        # Barcode (filter)
-        layout.addWidget(QLabel("Barcode (filter)"))
-        self.barcode_filter = QLineEdit()
-        self.barcode_filter.setStyleSheet("background: #f5f5f5; border-radius: 4px; padding: 4px; border: 1px solid #64b5f6;")
-        self.barcode_filter.setEnabled(False)
-        layout.addWidget(self.barcode_filter)
-        self.barcode_filter.textChanged.connect(filter_barcode_list)  # Kết nối signal sau khi đã định nghĩa hàm
-
-        # Barcode list
-        self.barcode_list = QListWidget()
-        self.barcode_list.setStyleSheet("""
-            QListWidget {
-                background: #ffffff;
-                border: 1px solid #90caf9;
-                border-radius: 4px;
-                padding: 4px;
-            }
-            QListWidget::item {
-                padding: 4px;
-            }
-            QListWidget::item:selected {
-                background: #e3f2fd;
-                color: #1565c0;
-            }
-        """)
-        layout.addWidget(self.barcode_list)
-
-        # Ref (filter)
-        layout.addWidget(QLabel("Ref (filter)"))
-        self.ref_filter = QLineEdit()
-        self.ref_filter.setStyleSheet("background: #f5f5f5; border-radius: 4px; padding: 4px; border: 1px solid #64b5f6;")
-        self.ref_filter.setEnabled(False)
-        layout.addWidget(self.ref_filter)
-        self.ref_filter.textChanged.connect(filter_ref_list)  # Kết nối signal sau khi đã định nghĩa hàm
-
-        # Ref list
-        self.ref_list = QListWidget()
-        self.ref_list.setStyleSheet(self.barcode_list.styleSheet())
-        layout.addWidget(self.ref_list)
-
-        # Panel (filter)
-        layout.addWidget(QLabel("Panel (filter)"))
-        self.panel_filter = QLineEdit()
-        self.panel_filter.setStyleSheet("background: #f5f5f5; border-radius: 4px; padding: 4px; border: 1px solid #64b5f6;")
-        self.panel_filter.setEnabled(False)
-        layout.addWidget(self.panel_filter)
-        self.panel_filter.textChanged.connect(filter_panel_list)  # Kết nối signal sau khi đã định nghĩa hàm
-
-        # Panel list
-        self.panel_list = QListWidget()
-        self.panel_list.setStyleSheet(self.barcode_list.styleSheet())
-        layout.addWidget(self.panel_list)
-
-        # Kết nối signals cho filters
-        self.barcode_filter.textChanged.connect(filter_barcode_list)
-        self.ref_filter.textChanged.connect(filter_ref_list) 
-        self.panel_filter.textChanged.connect(filter_panel_list)
-
-        # Các hàm filter sử dụng self
-        def filter_barcode_list(text):
-            self.barcode_list.clear()
-            for item in self.barcode_items:
-                if text.lower() in item.lower():
-                    self.barcode_list.addItem(item)
-
-        def filter_ref_list(text):
-            self.ref_list.clear()
-            for item in self.ref_items:
-                if text.lower() in item.lower():
-                    self.ref_list.addItem(item)
-
-        def filter_panel_list(text):
-            self.panel_list.clear()
-            for item in self.panel_items:
-                if text.lower() in item.lower():
-                    self.panel_list.addItem(item)
-
-        # Thêm hàm kiểm tra và cập nhật trạng thái filter
-        def update_filter_states():
-            self.barcode_filter.setEnabled(len(self.barcode_items) > 0)
-            self.ref_filter.setEnabled(len(self.ref_items) > 0)
-            self.panel_filter.setEnabled(len(self.panel_items) > 0)
-
-        # Cập nhật khi import file
-        def import_xml():
-            # Cho phép chọn nhiều file XML
-            files, _ = QFileDialog.getOpenFileNames(
-                group,
-                "Select XML Files",
-                "",
-                "XML Files (*.xml)"
-            )
-            
-            if files:
-                for file_path in files:
-                    try:
-                        tree = ET.parse(file_path)
-                        root = tree.getroot()
-                        
-                        # Lấy barcode và ID từ file XML
-                        barcode = root.findtext(".//Barcode", "")
-                        board_id = root.findtext(".//Id", "")
-                        
-                        if not barcode or not board_id:
-                            continue
-
-                        # Tạo key unique từ ID và barcode
-                        unique_key = f"{board_id}___{barcode}"
-                        
-                        # Kiểm tra nếu đã tồn tại
-                        if unique_key in self.barcode_items:
-                            continue
-                        
-                        # Thêm vào danh sách nếu chưa tồn tại
-                        self.barcode_items.append(unique_key)
-                        self.xml_files.append(file_path)
-                        self.xml_roots.append(root)
-                        
-                        # Cập nhật barcode_list
-                        self.barcode_list.clear()
-                        self.barcode_list.addItems(self.barcode_items)
-        
-
-                    except Exception as e:
-                        QMessageBox.critical(
-                            self,
-                            "Error",
-                            f"Error reading XML file {file_path}:\n{e}"
-                        )
-            update_filter_states()
-
-        def on_barcode_selected(index):
-            """Xử lý khi chọn barcode"""
-            if index >= 0 and index < len(self.xml_roots):
-                # Reset filter content first
-                self.barcode_filter.clear()
-                self.ref_filter.clear() 
-                self.panel_filter.clear()
-
-                # Cập nhật xml_root theo barcode được chọn 
-                self.xml_root = self.xml_roots[index]
-                root = self.xml_root
-
-                # Lấy các thông tin cơ bản
-                time_node = root.find(".//BoardHistory/CreationTime")
-                machine_node = root.find(".//MachineId")  
-                head_node = root.find(".//PlaceHeads/PlaceHead/GantryId")
-                lane_node = root.find(".//Lane")
-
-                # Cập nhật bảng Pickup
-                if hasattr(self, "pickup_table"):
-                    if time_node is not None:
-                        self.pickup_table.setItem(self.pickup_time_row, 1, 
-                            QTableWidgetItem(time_node.text))
-                    if machine_node is not None:
-                        self.pickup_table.setItem(self.pickup_machine_row, 1,
-                            QTableWidgetItem(machine_node.text))
-                    if head_node is not None:
-                        self.pickup_table.setItem(self.pickup_head_row, 1,
-                            QTableWidgetItem(head_node.text))
-
-                # Cập nhật bảng Placement
-                if hasattr(self, "placement_table"):
-                    if time_node is not None:
-                        self.placement_table.setItem(self.placement_time_row, 1,
-                            QTableWidgetItem(time_node.text))
-                    if machine_node is not None:
-                        self.placement_table.setItem(self.placement_machine_row, 1,
-                            QTableWidgetItem(machine_node.text))
-                    if lane_node is not None:
-                        self.placement_table.setItem(self.placement_lane_row, 1,
-                            QTableWidgetItem(lane_node.text))
-                    if head_node is not None:
-                        self.placement_table.setItem(self.placement_head_row, 1,
-                            QTableWidgetItem(head_node.text))
-
-                # Cập nhật ref_mapping và panel_mapping
-                self.ref_items = []
-                self.panel_items = []
-                self.ref_mapping = {}
-                self.panel_mapping = {}
-
-                # Cập nhật ref_mapping
-                for pos_node in root.findall(".//PlacePositions/PlacePosition"):
-                    name_node = pos_node.find("Name")
-                    id_attr = pos_node.get("Id")
-                    if name_node is not None and name_node.text and id_attr:
-                        self.ref_mapping.setdefault(name_node.text, []).append(id_attr)
-                        if name_node.text not in self.ref_items:
-                            self.ref_items.append(name_node.text)
-
-                # Cập nhật panel_mapping
-                for child_img_node in root.findall(".//SubBoards/SubBoard/ChildImage/ChildImages/ChildImage/ChildImages/ChildImage"):
-                    name_node = child_img_node.find("Name")
-                    pos_nodes = child_img_node.findall("PlacePositions/PlacePosition")
-                    for pos_node in pos_nodes:
-                        id_attr = pos_node.get("Id")
-                        if name_node is not None and name_node.text and id_attr:
-                            self.panel_mapping.setdefault(name_node.text, []).append(id_attr)
-                            if name_node.text not in self.panel_items:
-                                self.panel_items.append(name_node.text)
-
-                # Cập nhật UI
-                self.ref_list.clear()
-                self.ref_list.addItems(self.ref_items)
-                self.panel_list.clear()
-                self.panel_list.addItems(self.panel_items)
-                
-                # Cập nhật trạng thái filter
-                self.barcode_filter.setEnabled(len(self.barcode_items) > 0)
-                self.ref_filter.setEnabled(len(self.ref_items) > 0)
-                self.panel_filter.setEnabled(len(self.panel_items) > 0)
-
-            update_filter_states()
-
-        # Kết nối signals
-        import_btn.clicked.connect(import_xml)
-        self.barcode_list.currentRowChanged.connect(on_barcode_selected)
-        self.ref_list.itemSelectionChanged.connect(self.show_data_for_selection)
-        self.panel_list.itemSelectionChanged.connect(self.show_data_for_selection)
-
-        # Thêm context menu cho barcode_list
-        self.barcode_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.barcode_list.customContextMenuRequested.connect(self.show_barcode_context_menu)
-
-        # Khai báo mapping ở self để dùng lại
         self.ref_mapping = {}
         self.panel_mapping = {}
-        self.xml_root = None
 
-        # Thay đổi khai báo biến để lưu trữ nhiều file XML
-        self.xml_files = []  # Lưu đường dẫn các file
-        self.xml_roots = []  # Lưu XML root của các file
-        self.barcode_items = [] # Lưu danh sách barcode
-        self.current_xml_index = -1 # Index của file XML hiện tại
-
+    def init_ui(self):
+        """Khởi tạo giao diện người dùng với bố cục hài hòa"""
+        # Widget chính
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
         
-        # Stretch to fill
-        layout.addStretch()
+        # Layout chính với tỷ lệ 25:75 cho panel trái và phải
+        main_layout = QHBoxLayout(central_widget)
+        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(30, 10, 0, 10)
+        
+        # Panel trái (tìm board) - chiếm 25% chiều rộng
+        find_board_panel = self.create_find_board_panel()
+        main_layout.addWidget(find_board_panel, 25)
+        
+        # Panel phải (thông tin chi tiết) - chiếm 75% chiều rộng
+        detail_panel = self.create_detail_panel()
+        main_layout.addWidget(detail_panel, 75)
+    
+
+    def create_find_board_panel(self):
+        """Tạo panel tìm kiếm board"""
+        group = QGroupBox()
+        layout = QVBoxLayout(group)
+
+        # Custom style cho panel trái
+        group.setStyleSheet("""
+            QGroupBox {
+                background: white;
+                border-radius: 10px;
+                padding: 15px;
+            }
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #2196F3, stop:1 #E91E63);
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 12px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #1976D2, stop:1 #D81B60);
+            }
+            QLineEdit {
+                border: 1px solid #2196F3;
+                border-radius: 5px;
+                padding: 8px;
+                font-size: 13px;
+                margin-top: 5px;
+                margin-bottom: 5px;
+            }
+            QListWidget {
+                border: 1px solid #E91E63;
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 13px;
+                background: white;
+                margin-bottom: 15px;
+                selection-background-color: #E91E63;
+                selection-color: white;
+            }
+            QLabel {
+                color: #333333;
+                font-size: 13px;
+                font-weight: bold;
+                margin: 5px 0;
+            }
+        """)
+        
+        # Button Import với icon
+        import_btn = QPushButton("Import Board (xml)")
+        import_btn.setMinimumHeight(40)
+        layout.addWidget(import_btn)
+        import_btn.clicked.connect(self.import_xml)
+        
+        # Barcode section
+        
+        self.barcode_label = QLabel("Barcode")
+        layout.addWidget(self.barcode_label)
+
+        self.barcode_filter = QLineEdit()
+        self.barcode_filter.setPlaceholderText("Filter barcodes...")
+        self.barcode_filter.textChanged.connect(self.filter_barcodes)
+        self.barcode_filter.setEnabled(False)
+        layout.addWidget(self.barcode_filter)
+        
+        self.barcode_list = QListWidget()
+        self.barcode_list.setMinimumHeight(150)
+        self.barcode_list.currentRowChanged.connect(self.on_barcode_selected)
+        layout.addWidget(self.barcode_list)
+        
+        # Ref section
+        self.ref_label = QLabel("Ref")
+        layout.addWidget(self.ref_label)
+        self.ref_filter = QLineEdit()
+        self.ref_filter.setPlaceholderText("Filter refs...")
+        self.ref_filter.textChanged.connect(self.filter_refs)
+        self.ref_filter.setEnabled(False)
+        layout.addWidget(self.ref_filter)
+        
+        self.ref_list = QListWidget()
+        self.ref_list.setMinimumHeight(150)
+        self.ref_list.currentItemChanged.connect(self.show_data_for_selection)
+        layout.addWidget(self.ref_list)
+        
+        # Panel section
+        self.panel_label = QLabel("Panel")
+        layout.addWidget(self.panel_label)
+        self.panel_filter = QLineEdit()
+        self.panel_filter.setPlaceholderText("Filter panels...")
+        self.panel_filter.textChanged.connect(self.filter_panels)
+        self.panel_filter.setEnabled(False)
+        layout.addWidget(self.panel_filter)
+        
+        self.panel_list = QListWidget()
+        self.panel_list.setMinimumHeight(150)
+        self.panel_list.currentItemChanged.connect(self.show_data_for_selection)
+        layout.addWidget(self.panel_list)
+        
+        # Add context menu to barcode list
+        self.barcode_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.barcode_list.customContextMenuRequested.connect(self.show_barcode_context_menu)
+        
+        return group
+    def create_detail_panel(self):
+        """Tạo panel hiển thị thông tin chi tiết"""
+        group = QGroupBox()
+        layout = QVBoxLayout(group)
+        layout.setSpacing(10)
+        layout.setContentsMargins(0, 10, 10, 30)
+        
+        # Create tables first
+        self.pickup_table = QTableWidget(15, 2)
+        self.placement_table = QTableWidget(19, 2)
+        
+        # Style cho các bảng và groupbox
+        group.setStyleSheet("""
+            QGroupBox {
+                background: transparent;
+                border: none;
+                padding: 0px;
+            }
+        """)
+
+        # Style cho tables
+        table_style = """
+            QTableWidget {
+                background: white;
+                border: none;
+                gridline-color: #ecf0f1;
+            }
+            QTableWidget::item {
+                padding: 5px;
+                border: none;
+                color: #2c3e50;
+                font-size: 50px;
+            }
+            QTableWidget::item:selected {
+                background: rgba(52, 152, 219, 0.1);
+                color: #2c3e50;
+            }
+            QHeaderView::section {
+                background: #34495e;
+                color: white;
+                font-weight: bold;
+                font-size: 13px;
+                padding: 8px;
+                border: none;
+            }
+        """
+        
+        # Enable alternating row colors
+        self.pickup_table.setAlternatingRowColors(True)
+        self.placement_table.setAlternatingRowColors(True)
+        
+        # Set up tables
+        for table in [self.pickup_table, self.placement_table]:
+            table.setShowGrid(False)
+            table.setStyleSheet(table_style)
+            table.horizontalHeader().setStretchLastSection(True)
+            table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft)
+            table.verticalHeader().setVisible(False)
+            table.verticalHeader().setDefaultSectionSize(40)
+            table.setColumnWidth(0, 200)
+            table.setColumnWidth(1, 200)
+        
+        # Tables layout
+        tables_layout = QHBoxLayout()
+        tables_layout.setSpacing(10)
+        
+        # Pickup table
+        pickup_group = QGroupBox("Pickup")
+        pickup_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 18px;
+                font-weight: bold;
+                padding: 20px;
+            }
+        """)
+        pickup_layout = QVBoxLayout(pickup_group)
+        pickup_layout.setContentsMargins(5, 5, 5, 5)
+        self.setup_pickup_table()
+        pickup_layout.addWidget(self.pickup_table)
+        tables_layout.addWidget(pickup_group)
+        
+        # Placement table
+        placement_group = QGroupBox("Placement")
+        placement_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 18px;
+                font-weight: bold;
+                padding: 20px;
+            }
+        """)
+        placement_layout = QVBoxLayout(placement_group)
+        pickup_layout.setContentsMargins(5, 5, 5, 5)
+        self.setup_placement_table()
+        placement_layout.addWidget(self.placement_table)
+        tables_layout.addWidget(placement_group)
+        
+        layout.addLayout(tables_layout)
+        
         return group
 
-    def clear_pickup_placement_tables(self):
-        """Xóa dữ liệu trong cột Data của bảng Pickup và Placement"""
-        # Xóa cột Pickup_Data (cột 1)
-        if hasattr(self, "pickup_table"):
-            for row in range(self.pickup_table.rowCount()):
-                self.pickup_table.setItem(row, 1, QTableWidgetItem(""))
-                
-        # Xóa cột Place_Data (cột 1)
-        if hasattr(self, "placement_table"):
-            for row in range(self.placement_table.rowCount()):
-                self.placement_table.setItem(row, 1, QTableWidgetItem(""))
-
-    def show_data_for_selection(self):
-        """Hiển thị dữ liệu Pickup/Placement khi chọn ref và panel"""
-        ref_name = self.ref_list.currentItem().text() if self.ref_list.currentItem() else None
-        panel_name = self.panel_list.currentItem().text() if self.panel_list.currentItem() else None
+    def setup_pickup_table(self):
+        """Thiết lập bảng pickup"""
+         # Set read-only flags
+        self.pickup_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        # Make cells non-selectable
+        self.pickup_table.setSelectionMode(QTableWidget.NoSelection)
+        # Disable drag and drop
+        self.pickup_table.setDragDropMode(QTableWidget.NoDragDrop)
+    
+        # Set headers
+        self.pickup_table.setHorizontalHeaderLabels(["Process", "Data"])
+        header = self.pickup_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
         
-        if not ref_name or not panel_name or self.xml_root is None:
-            return
-
-        ref_ids = self.ref_mapping.get(ref_name, [])
-        panel_ids = self.panel_mapping.get(panel_name, [])
-        matched_ids = set(ref_ids) & set(panel_ids)
-
-        # Khởi tạo giá trị rỗng cho dữ liệu
-        pickup_data = {
-            "segment": "", "nozzle": "", "conponent": "", "repick": "", 
-            "pickup_track_row": "", "feeder_pitch": "", "error_in_z": "",
-            "z_down": "", "z_up": "", "dp_angle": "", "vacuum_before": "",
-            "vacuum_after": "", "holding": "", "measure_height": ""
-        }
+        # Define row indices
+        self.pickup_time_row = 0
+        self.pickup_machine_row = 1
+        self.pickup_head_row = 2
+        self.pickup_segment_row = 3
+        self.pickup_nozzle_row = 4
+        self.pickup_conponent_row = 5
+        self.pickup_repick_row = 6
+        self.pickup_track_row = 7
+        self.pickup_pitck_row = 8
+        self.pickup_feeder_time_row = 9
+        self.pickup_z_down_row = 10
+        self.pickup_z_up_row = 11
+        self.pickup_dp_angle_row = 12
+        self.pickup_vacuum_before_row = 13
+        self.pickup_vacuum_after_row = 14
+        self.pickup_holding_row = 15
+        self.pickup_error_in_z_row = 16
+        self.pickup_stay_time_row = 17
+        self.pickup_measure_height_row = 18
         
-        placement_data = {
-            "segment": "", "nozzle": "", "conponent": "", "measure_x": "",
-            "measure_y": "", "measure_phi": "", "theroy_thickness": "",
-            "actual_thickness": "", "error_in_z": "", "z_end": "",
-            "z_down_profile": "", "z_up_profile": "", "vacuum_before_place": "",
-            "vacuum_after_place": "", "holding": "", "airkiss_pro": "",
-            "airkiss_machine": "", "airkiss_measured": "", "recipe": ""
-        }
+        # Set row labels
+        row_labels = [
+            "Time", "Machine", "Head", "Segment", "Nozzle",
+            "Component", "Repick", "Track", "Pitch", "Feeder Time",
+            "Z Down", "Z Up", "DP Angle", "Vacuum Before",
+            "Vacuum After", "Holding", "Error In Z", "Stay Time",
+            "Measure Height"
+        ]
+        for i, label in enumerate(row_labels):
+            self.pickup_table.setItem(i, 0, QTableWidgetItem(label))
 
-        # Tìm node khớp trong XML hiện tại
-        for matched_id in matched_ids:
-            pos_node = self.xml_root.find(f".//PlacePositions/PlacePosition[@Id='{matched_id}']")
-            if pos_node is not None:
-                component_node = pos_node.find("Component")
-                if component_node is not None:
-                    # Lấy dữ liệu pickup
-                    pickup_data["segment"] = component_node.findtext("Segment", "")
-                    pickup_data["nozzle"] = component_node.findtext("Nozzle", "")
-                    # Xử lý component name từ VisionDump
-                    raw_conponent = component_node.findtext("Measure/VisionDump", "")
-                    if raw_conponent:
-                        parts = raw_conponent.split("_", 6)
-                        if len(parts) >= 7:
-                            value = parts[6].replace(".svdmp", "")
-                            pickup_data["conponent"] = value
-                            placement_data["conponent"] = value
-                    pickup_data["repick"] = component_node.findtext("RetryCount", "")
-                    pickup_data["pickup_track_row"] = component_node.findtext("Pick/FeederData/locationKey", "")
-                    pickup_data["feeder_pitch"] = component_node.findtext("Pick/FeederData/pitch", "")
-                    pickup_data["z_down"] = component_node.findtext("Pick/ZMovementDown/TravelProfile", "")
-                    pickup_data["z_up"] = component_node.findtext("Pick/ZMovementUp/TravelProfile", "")
-                    pickup_data["dp_angle"] = component_node.findtext("Pick/DpMovement/TargetPosition", "")
-                    pickup_data["vacuum_before"] = component_node.findtext("Pick/VacuumSystem/MeasuredBefore", "")
-                    pickup_data["vacuum_after"] = component_node.findtext("Pick/VacuumSystem/MeasuredAfter", "")
-                    pickup_data["holding"] = component_node.findtext("Pick/VacuumSystem/HoldingCircuit", "")
-                    pickup_data["measure_height"] = component_node.findtext("Pick/FeederData/ComponentHeight", "")
-
-                    # Lấy dữ liệu placement
-                    placement_data["segment"] = component_node.findtext("Segment", "")
-                    placement_data["nozzle"] = component_node.findtext("Nozzle", "")
-                    placement_data["measure_x"] = component_node.findtext("Measure/MeasuredPose/Y", "")
-                    placement_data["measure_y"] = component_node.findtext("Measure/MeasuredPose/X", "")
-                    placement_data["measure_phi"] = component_node.findtext("Measure/MeasuredPose/Phi", "")
-                    placement_data["theroy_thickness"] = component_node.findtext("FilteredHeight", "")
-                    placement_data["actual_thickness"] = component_node.findtext("Pick/ComponentSensor/MeasuredHeight", "")
-                    placement_data["error_in_z"] = pos_node.findtext("ErrorInZ", "")
-                    placement_data["z_end"] = component_node.findtext("Place/ZMovementDown/EndPosition", "")
-                    placement_data["z_down_profile"] = component_node.findtext("Place/ZMovementDown/TravelProfile", "")
-                    placement_data["z_up_profile"] = component_node.findtext("Place/ZMovementUp/TravelProfile", "")
-                    placement_data["vacuum_before_place"] = component_node.findtext("Place/VacuumSystem/MeasuredBefore", "")
-                    placement_data["vacuum_after_place"] = component_node.findtext("Place/VacuumSystem/MeasuredAfter", "")
-                    placement_data["holding"] = component_node.findtext("Pick/VacuumSystem/HoldingCircuit", "")
-                    placement_data["airkiss_pro"] = component_node.findtext("Place/VacuumSystem/ParamDown", "")
-                    placement_data["airkiss_machine"] = component_node.findtext("Place/VacuumSystem/ParamThresholdDown", "")
-                    placement_data["airkiss_measured"] = component_node.findtext("Place/VacuumSystem/MeasuredDown", "")
-                    
-                    recipe_node = self.xml_root.find(".//Recipe")
-                    placement_data["recipe"] = recipe_node.text if recipe_node is not None else ""
-                    break
-
-        # Cập nhật bảng Pickup
-        if hasattr(self, "pickup_table"):
-            self.pickup_table.setItem(self.pickup_segment_row, 1, QTableWidgetItem(pickup_data["segment"]))
-            self.pickup_table.setItem(self.pickup_nozzle_row, 1, QTableWidgetItem(pickup_data["nozzle"]))
-            self.pickup_table.setItem(self.pickup_conponent_row, 1, QTableWidgetItem(pickup_data["conponent"]))
-            self.pickup_table.setItem(self.pickup_repick_row, 1, QTableWidgetItem(pickup_data["repick"]))
-            
-            # Xử lý track value
-            track_value = pickup_data["pickup_track_row"]
-            if track_value and len(track_value) >= 4:
-                track_value = track_value[2:4]
-            self.pickup_table.setItem(self.pickup_track_row, 1, QTableWidgetItem(track_value))
-            
-            self.pickup_table.setItem(self.pickup_pitck_row, 1, QTableWidgetItem(pickup_data["feeder_pitch"]))
-            self.pickup_table.setItem(self.pickup_z_down_row, 1, QTableWidgetItem(pickup_data["z_down"]))
-            self.pickup_table.setItem(self.pickup_z_up_row, 1, QTableWidgetItem(pickup_data["z_up"]))
-            self.pickup_table.setItem(self.pickup_dp_angle_row, 1, QTableWidgetItem(pickup_data["dp_angle"]))
-            self.pickup_table.setItem(self.pickup_vacuum_before_row, 1, QTableWidgetItem(pickup_data["vacuum_before"]))
-            self.pickup_table.setItem(self.pickup_vacuum_after_row, 1, QTableWidgetItem(pickup_data["vacuum_after"]))
-            self.pickup_table.setItem(self.pickup_holding_row, 1, QTableWidgetItem(pickup_data["holding"]))
-            self.pickup_table.setItem(self.pickup_measure_height_row, 1, QTableWidgetItem(pickup_data["measure_height"]))
-
-        # Cập nhật bảng Placement  
-        if hasattr(self, "placement_table"):
-            self.placement_table.setItem(self.placement_segment_row, 1, QTableWidgetItem(placement_data["segment"]))
-            self.placement_table.setItem(self.placement_nozzle_row, 1, QTableWidgetItem(placement_data["nozzle"]))
-            self.placement_table.setItem(self.placement_conponent_row, 1, QTableWidgetItem(placement_data["conponent"]))
-            self.placement_table.setItem(self.placement_measure_x_row, 1, QTableWidgetItem(placement_data["measure_x"]))
-            self.placement_table.setItem(self.placement_measure_y_row, 1, QTableWidgetItem(placement_data["measure_y"]))
-            self.placement_table.setItem(self.placement_measure_phi_row, 1, QTableWidgetItem(placement_data["measure_phi"]))
-            self.placement_table.setItem(self.placement_theroy_size_row, 1, QTableWidgetItem(placement_data["theroy_thickness"]))
-            self.placement_table.setItem(self.placement_actual_size_row, 1, QTableWidgetItem(placement_data["actual_thickness"]))
-            self.placement_table.setItem(self.placement_error_in_z_row, 1, QTableWidgetItem(placement_data["error_in_z"]))
-            self.placement_table.setItem(self.placement_z_end_row, 1, QTableWidgetItem(placement_data["z_end"]))
-            self.placement_table.setItem(self.placement_z_down_row, 1, QTableWidgetItem(placement_data["z_down_profile"]))
-            self.placement_table.setItem(self.placement_z_up_row, 1, QTableWidgetItem(placement_data["z_up_profile"]))
-            self.placement_table.setItem(self.placement_vacuum_before_row, 1, QTableWidgetItem(placement_data["vacuum_before_place"]))
-            self.placement_table.setItem(self.placement_vacuum_after_row, 1, QTableWidgetItem(placement_data["vacuum_after_place"]))
-            self.placement_table.setItem(self.placement_holding_row, 1, QTableWidgetItem(placement_data["holding"]))
-            self.placement_table.setItem(self.placement_airkiss_pro_row, 1, QTableWidgetItem(placement_data["airkiss_pro"]))
-            self.placement_table.setItem(self.placement_airkiss_machine_row, 1, QTableWidgetItem(placement_data["airkiss_machine"]))
-            self.placement_table.setItem(self.placement_airkiss_measured_row, 1, QTableWidgetItem(placement_data["airkiss_measured"]))
-            self.placement_table.setItem(self.placement_recipe_row, 1, QTableWidgetItem(placement_data["recipe"]))
+    def setup_placement_table(self):
+        """Thiết lập bảng placement"""
+        # Set read-only flags  
+        self.placement_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        # Make cells non-selectable
+        self.placement_table.setSelectionMode(QTableWidget.NoSelection)
+        # Disable drag and drop
+        self.placement_table.setDragDropMode(QTableWidget.NoDragDrop)
+        
+        # Set headers
+        self.placement_table.setHorizontalHeaderLabels(["Process", "Data"])
+        header = self.placement_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        
+        # Define row indices
+        self.placement_time_row = 0
+        self.placement_machine_row = 1
+        self.placement_head_row = 2
+        self.placement_lane_row = 3
+        self.placement_segment_row = 4
+        self.placement_nozzle_row = 5
+        self.placement_conponent_row = 6
+        self.placement_measure_x_row = 7
+        self.placement_measure_y_row = 8
+        self.placement_measure_phi_row = 9
+        self.placement_theroy_size_row = 10
+        self.placement_actual_size_row = 11
+        self.placement_error_in_z_row = 12
+        self.placement_z_end_row = 13
+        self.placement_z_down_row = 14
+        self.placement_z_up_row = 15
+        self.placement_vacuum_before_row = 16
+        self.placement_vacuum_after_row = 17
+        self.placement_holding_row = 18
+        self.placement_airkiss_pro_row = 19
+        self.placement_airkiss_machine_row = 20
+        self.placement_airkiss_measured_row = 21
+        self.placement_airkiss_time_row = 22
+        self.placement_stay_time_row = 23
+        self.placement_order_current_machine_row = 24
+        self.placement_recipe_row = 25
+        
+        # Set row labels
+        row_labels = [
+            "Time", "Machine", "Head", "Lane", "Segment", "Nozzle",
+            "Component", "Measure X", "Measure Y", "Measure Phi",
+            "Theory Size", "Actual Size", "Error In Z", "Z End",
+            "Z Down Profile", "Z Up Profile", "Vacuum Before",
+            "Vacuum After", "Holding", "Airkiss Profile",
+            "Airkiss Machine", "Airkiss Measured", "Airkiss Time",
+            "Stay Time", "Order Current Machine", "Recipe"
+        ]
+        for i, label in enumerate(row_labels):
+            self.placement_table.setItem(i, 0, QTableWidgetItem(label))
 
     def import_xml(self):
         """Import và phân tích file XML"""
@@ -740,188 +374,476 @@ class MainWindow(QMainWindow):
         )
         
         if files:
+            current_barcode = self.barcode_list.currentItem().text() if self.barcode_list.currentItem() else None
+            
             for file_path in files:
                 try:
                     tree = ET.parse(file_path)
                     root = tree.getroot()
                     
-                    # Lấy barcode và ID từ file XML
-                    barcode = root.findtext(".//Barcode", "")
+                    # Check for board ID first
                     board_id = root.findtext(".//Id", "")
-                    
-                    if not barcode or not board_id:
-                        continue
-
-                    # Tạo key unique từ ID và barcode
-                    unique_key = f"{board_id}___{barcode}"
-                    
-                    # Kiểm tra nếu đã tồn tại
-                    if unique_key in self.barcode_items:
+                    if not board_id:
                         QMessageBox.warning(
                             self,
-                            "Warning",
-                            f"File với Barcode {barcode} và ID {board_id} đã tồn tại!"
+                            "Invalid File",
+                            f"File {os.path.basename(file_path)} does not contain a board ID.",
+                            QMessageBox.Ok
                         )
                         continue
                     
-                    # Thêm vào danh sách nếu chưa tồn tại
-                    self.barcode_items.append(unique_key)
-                    self.xml_files.append(file_path)
-                    self.xml_roots.append(root)
+                    # Get basic info
+                    basic_info = {
+                        'EndPicking': root.findtext(".//BoardHistory/ProcessingHistory/ProcessingPosition/EndPicking", ""),
+                        'EndPlacing': root.findtext(".//BoardHistory/ProcessingHistory/ProcessingPosition/EndPlacing", ""),
+                        'MachineId': root.findtext(".//MachineId", ""),
+                        'GantryId': root.findtext(".//PlaceHeads/PlaceHead/GantryId", ""),
+                        'Lane': root.findtext(".//Lane", "")
+                    }
                     
-                    # Cập nhật barcode_list
-                    self.barcode_list.clear()
-                    self.barcode_list.addItems(self.barcode_items)
-                    
-                    # Cập nhật đường dẫn file
-                    self.footer_label.setText(f"Path: {', '.join(self.xml_files)}")
-
+                    # Get barcode
+                    barcode = root.findtext(".//Barcode", "")
+                    if barcode:
+                        unique_key = f"{board_id}__{barcode}"
+                        if unique_key not in self.barcode_items:
+                            self.barcode_items.append(unique_key)
+                            self.xml_data[unique_key] = {
+                                'file_path': file_path,
+                                'basic_info': basic_info
+                            }
+                    else:
+                        QMessageBox.warning(
+                            self,
+                            "Invalid File",
+                            f"File {os.path.basename(file_path)} does not contain a barcode.",
+                            QMessageBox.Ok
+                        )
+                        
                 except Exception as e:
                     QMessageBox.critical(
                         self,
                         "Error",
-                        f"Error reading XML file {file_path}:\n{e}"
+                        f"Error processing file {os.path.basename(file_path)}:\n{str(e)}",
+                        QMessageBox.Ok
                     )
 
-        # Reset các list và bảng
-        self.ref_list.clear()
-        self.panel_list.clear() 
+            # Update UI
+            self.barcode_list.clear()
+            self.barcode_list.addItems(sorted(self.barcode_items))
+            
+            # Restore selection
+            if current_barcode and current_barcode in self.barcode_items:
+                for i in range(self.barcode_list.count()):
+                    if self.barcode_list.item(i).text() == current_barcode:
+                        self.barcode_list.setCurrentItem(self.barcode_list.item(i))
+                        break
+                        
+            self.barcode_filter.setEnabled(True)
+
+    def filter_barcodes(self, text):
+        """Lọc danh sách barcode"""
+        for i in range(self.barcode_list.count()):
+            item = self.barcode_list.item(i)
+            item.setHidden(text.upper() not in item.text().upper())
+
+    def filter_refs(self, text):
+        """Lọc danh sách ref"""
+        for i in range(self.ref_list.count()):
+            item = self.ref_list.item(i)
+            item.setHidden(text.upper() not in item.text().upper())
+
+    def filter_panels(self, text):
+        """Lọc danh sách panel"""
+        for i in range(self.panel_list.count()):
+            item = self.panel_list.item(i)
+            item.setHidden(text.upper() not in item.text().upper())
+
+    def show_data_for_selection(self):
+        """Hiển thị dữ liệu khi chọn ref và panel"""
+        ref_item = self.ref_list.currentItem()
+        panel_item = self.panel_list.currentItem()
+        
+        # Cập nhật labels ngay khi chọn
+        if ref_item:
+            self.ref_label.setText(f"Ref: {ref_item.text()}")
+            
+        if panel_item:    
+            self.panel_label.setText(f"Panel: {panel_item.text()}")
+
+        # Chỉ xử lý khi đã chọn cả ref và panel
+        if not (ref_item and panel_item and self.xml_root is not None):
+            return
+
+        try:
+            # Lưu lại basic_info trước khi clear
+            basic_info = {}
+            if self.current_barcode and self.current_barcode in self.xml_data:
+                basic_info = self.xml_data[self.current_barcode]['basic_info']
+
+            # Clear chỉ những dòng không phải basic info
+            if hasattr(self, "pickup_table"):
+                for row in range(self.pickup_table.rowCount()):
+                    if row not in [self.pickup_time_row, self.pickup_machine_row, self.pickup_head_row]:
+                        self.pickup_table.setItem(row, 1, QTableWidgetItem(""))
+
+            if hasattr(self, "placement_table"):
+                for row in range(self.placement_table.rowCount()):
+                    if row not in [self.placement_time_row, self.placement_machine_row, 
+                                 self.placement_head_row, self.placement_lane_row]:
+                        self.placement_table.setItem(row, 1, QTableWidgetItem(""))
+
+            ref_name = ref_item.text()
+            panel_name = panel_item.text()
+
+            # Lấy ID của ref và panel từ mapping
+            ref_ids = self.ref_mapping.get(ref_name, [])
+            panel_ids = self.panel_mapping.get(panel_name, [])
+
+            # Tìm ID khớp giữa ref và panel
+            matched_ids = set(ref_ids) & set(panel_ids)
+
+            if matched_ids:
+                for matched_id in matched_ids:
+                    pos_node = self.xml_root.find(f".//PlacePositions/PlacePosition[@Id='{matched_id}']")
+                    if pos_node is not None:
+                        component_node = pos_node.find("Component")
+                        if component_node is not None:
+                            # Update pickup table
+                            if hasattr(self, "pickup_table"):
+                                self.pickup_table.setItem(self.pickup_segment_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Segment", "")))
+                                self.pickup_table.setItem(self.pickup_nozzle_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Nozzle", "")))
+                                
+                                # Xử lý component name từ VisionDump
+                                raw_component = component_node.findtext("Measure/VisionDump", "")
+                                if raw_component:
+                                    parts = raw_component.split("_", 6)
+                                    if len(parts) >= 7:
+                                        component_name = parts[6].replace(".svdmp", "")
+                                        self.pickup_table.setItem(self.pickup_conponent_row, 1,
+                                            QTableWidgetItem(component_name))
+                                        self.pickup_table.setItem(self.pickup_repick_row, 1,
+                                            QTableWidgetItem(component_node.findtext("RetryCount", "")))
+                                        self.pickup_table.setItem(self.pickup_track_row, 1,
+                                            QTableWidgetItem(component_node.findtext("Pick/FeederData/locationKey", "")))
+                                                    
+                                        ram_pitch = component_node.findtext("Pick/FeederData/pitch", "")
+                                        if ram_pitch:
+                                            self.pickup_table.setItem(self.pickup_pitck_row, 1,
+                                                QTableWidgetItem(ram_pitch.replace(".", "")))
+
+                                        self.pickup_table.setItem(self.pickup_feeder_time_row, 1,
+                                            QTableWidgetItem("N/A"))
+                                        self.pickup_table.setItem(self.pickup_z_down_row, 1,
+                                            QTableWidgetItem(component_node.findtext("Pick/ZMovementDown/TravelProfile", "")))
+                                        self.pickup_table.setItem(self.pickup_z_up_row, 1,
+                                            QTableWidgetItem(component_node.findtext("Pick/ZMovementUp/TravelProfile", "")))
+                                        self.pickup_table.setItem(self.pickup_dp_angle_row, 1,
+                                            QTableWidgetItem(component_node.findtext("Pick/DpMovement/TargetPosition", "")))
+                                        self.pickup_table.setItem(self.pickup_vacuum_before_row, 1,
+                                            QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/MeasuredBefore", "")))
+                                        self.pickup_table.setItem(self.pickup_vacuum_after_row, 1,
+                                            QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/MeasuredAfter", "")))
+                                        self.pickup_table.setItem(self.pickup_holding_row, 1,
+                                            QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/HoldingCircuit", "")))
+                                        self.pickup_table.setItem(self.pickup_error_in_z_row, 1,
+                                            QTableWidgetItem("N/A"))
+                                        self.pickup_table.setItem(self.pickup_stay_time_row, 1,
+                                            QTableWidgetItem("N/A"))
+                                        self.pickup_table.setItem(self.pickup_measure_height_row, 1,
+                                            QTableWidgetItem(component_node.findtext("Pick/ComponentSensor/MeasuredHeight", "")))
+
+                            # Update placement table
+                            if hasattr(self, "placement_table"):
+                                self.placement_table.setItem(self.placement_segment_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Segment", "")))
+                                self.placement_table.setItem(self.placement_nozzle_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Nozzle", "")))
+                                self.placement_table.setItem(self.placement_conponent_row, 1,
+                                    QTableWidgetItem(component_name if 'component_name' in locals() else ""))
+                                
+                                measure_x = component_node.findtext("Measure/MeasuredPose/X", "")
+                                if measure_x:
+                                    try:
+                                        measure_x = f"{float(measure_x):.6f}"
+                                    except (ValueError, TypeError):
+                                        pass
+                                self.placement_table.setItem(self.placement_measure_x_row, 1,
+                                    QTableWidgetItem(measure_x))
+                                    
+                                measure_y = component_node.findtext("Measure/MeasuredPose/Y", "")
+                                if measure_y:
+                                    try:
+                                        measure_y = f"{float(measure_y):.6f}"
+                                    except (ValueError, TypeError):
+                                        pass
+                                self.placement_table.setItem(self.placement_measure_y_row, 1,
+                                    QTableWidgetItem(measure_y))
+                                    
+                                measure_phi = component_node.findtext("Measure/MeasuredPose/Phi", "")
+                                if measure_phi:
+                                    try:
+                                        measure_phi = f"{float(measure_phi):.6f}"
+                                    except (ValueError, TypeError):
+                                        pass
+                                self.placement_table.setItem(self.placement_measure_phi_row, 1,
+                                    QTableWidgetItem(measure_phi))
+                                    
+                                self.placement_table.setItem(self.placement_theroy_size_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Pick/FeederData/ComponentHeight", "")))
+                                self.placement_table.setItem(self.placement_actual_size_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Pick/ComponentSensor/MeasuredHeight", "")))
+                                    
+                                error_in_z = pos_node.findtext("ErrorInZ", "")
+                                if error_in_z:
+                                    try:
+                                        error_in_z = f"{float(error_in_z):.6f}"
+                                    except (ValueError, TypeError):
+                                        pass
+                                self.placement_table.setItem(self.placement_error_in_z_row, 1,
+                                    QTableWidgetItem(error_in_z))
+                                    
+                                self.placement_table.setItem(self.placement_z_end_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Place/ZMovementDown/EndPosition", "")))
+                                self.placement_table.setItem(self.placement_z_down_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Place/ZMovementDown/TravelProfile", "")))
+                                self.placement_table.setItem(self.placement_z_up_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Place/ZMovementUp/TravelProfile", "")))
+                                self.placement_table.setItem(self.placement_vacuum_before_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Place/VacuumSystem/MeasuredBefore", "")))
+                                self.placement_table.setItem(self.placement_vacuum_after_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Place/VacuumSystem/MeasuredAfter", "")))
+                                self.placement_table.setItem(self.placement_holding_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/HoldingCircuit", "")))
+                                self.placement_table.setItem(self.placement_airkiss_pro_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Place/VacuumSystem/ParamDown", "")))
+                                self.placement_table.setItem(self.placement_airkiss_machine_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Place/VacuumSystem/ParamThresholdDown", "")))
+                                self.placement_table.setItem(self.placement_airkiss_measured_row, 1,
+                                    QTableWidgetItem(component_node.findtext("Place/VacuumSystem/MeasuredDown", "")))
+                                self.placement_table.setItem(self.placement_airkiss_time_row, 1,
+                                    QTableWidgetItem("N/A"))
+                                self.placement_table.setItem(self.placement_stay_time_row, 1,
+                                    QTableWidgetItem("N/A"))
+                                self.placement_table.setItem(self.placement_order_current_machine_row, 1,
+                                    QTableWidgetItem("N/A"))
+                                    
+                                recipe_node = self.xml_root.find(".//Recipe")
+                                self.placement_table.setItem(self.placement_recipe_row, 1,
+                                    QTableWidgetItem(recipe_node.text if recipe_node is not None else ""))
+
+                            break
+
+        except Exception as e:
+            print(f"Error showing data: {e}")
+
+    def clear_pickup_placement_tables(self):
+        """Xóa dữ liệu trong các bảng pickup và placement"""
+        if hasattr(self, "pickup_table"):
+            for row in range(self.pickup_table.rowCount()):
+                self.pickup_table.setItem(row, 1, QTableWidgetItem(""))
+                
+        if hasattr(self, "placement_table"):
+            for row in range(self.placement_table.rowCount()):
+                self.placement_table.setItem(row, 1, QTableWidgetItem(""))
+
+    def copy_cell_value(self, item):
+        """Copy giá trị của cell vào clipboard"""
+        if item and item.column() == 1:  # Chỉ copy cột Value
+            value = item.text()
+            QApplication.clipboard().setText(value)
+            QToolTip.showText(QCursor.pos(), "Copied!")
+
+    def on_barcode_selected(self, index):
+        """Xử lý khi chọn barcode"""
+        # Clear all data first
         self.clear_pickup_placement_tables()
+        
+        # Clear lists
+        self.ref_list.clear()
+        self.panel_list.clear()
+        
+        # Reset labels
+        self.ref_label.setText("Ref")
+        self.panel_label.setText("Panel")
+        self.barcode_label.setText("Barcode")
+        
+        # Clear mappings
+        self.ref_mapping.clear()
+        self.panel_mapping.clear()
+        self.ref_items.clear()
+        self.panel_items.clear()
+        
+        if index >= 0:
+            selected_item = self.barcode_list.item(index)
+            if selected_item:
+                selected_barcode = selected_item.text()
+                self.current_barcode = selected_barcode
+                self.barcode_label.setText(f"Barcode: {selected_barcode}")
+                
+                # Get file data
+                file_data = self.xml_data.get(selected_barcode)
+                if file_data:
+                    try:
+                         # Check if file exists
+                        if not os.path.exists(file_data['file_path']):
+                            raise FileNotFoundError(f"XML file not found: {file_data['file_path']}")
+                            
+                        # Parse XML file
+                        tree = ET.parse(file_data['file_path'])
+                        self.xml_root = tree.getroot()
+                        
+                        
+                        # Update basic info only
+                        basic_info = file_data['basic_info']
+                        if hasattr(self, "pickup_table"):
+                            self.pickup_table.setItem(self.pickup_time_row, 1,
+                                QTableWidgetItem(basic_info.get('EndPicking', '')))
+                            self.pickup_table.setItem(self.pickup_machine_row, 1,
+                                QTableWidgetItem(basic_info.get('MachineId', '')))
+                            self.pickup_table.setItem(self.pickup_head_row, 1,
+                                QTableWidgetItem(basic_info.get('GantryId', '')))
+
+                        if hasattr(self, "placement_table"):
+                            self.placement_table.setItem(self.placement_time_row, 1,
+                                QTableWidgetItem(basic_info.get('EndPlacing', '')))
+                            self.placement_table.setItem(self.placement_machine_row, 1,
+                                QTableWidgetItem(basic_info.get('MachineId', '')))
+                            self.placement_table.setItem(self.placement_head_row, 1,
+                                QTableWidgetItem(basic_info.get('GantryId', '')))
+                            self.placement_table.setItem(self.placement_lane_row, 1,
+                                QTableWidgetItem(basic_info.get('Lane', '')))
+
+                        # Build mappings and update lists
+                        self.update_ref_panel_mappings()
+
+                    except Exception as e:
+                        # Show error message
+                        QMessageBox.critical(
+                            self,
+                            "File Error",
+                            f"Error loading barcode {selected_barcode}:\n{str(e)}\n\nThis barcode will be removed."
+                        )
+                        
+                        # Remove invalid barcode
+                        self.remove_invalid_barcode(selected_barcode)
+                        
+                    except Exception as e:
+                        QMessageBox.critical(
+                            self,
+                            "XML Error",
+                            f"Error parsing XML for barcode {selected_barcode}:\n{str(e)}"
+                        )
+                        print(f"Error parsing XML: {e}")
+                    finally:
+                        import gc
+                        gc.collect()
+    
+    def remove_invalid_barcode(self, barcode):
+        """Remove invalid barcode from all data structures"""
+        # Remove from data dictionary
+        if barcode in self.xml_data:
+            del self.xml_data[barcode]
+        
+        # Remove from items list
+        if barcode in self.barcode_items:
+            self.barcode_items.remove(barcode)
+        
+        # Remove from list widget
+        items = self.barcode_list.findItems(barcode, Qt.MatchExactly)
+        for item in items:
+            self.barcode_list.takeItem(self.barcode_list.row(item))
+        
+        # Clear selection if no items left
+        if self.barcode_list.count() == 0:
+            self.barcode_filter.setEnabled(False)
+            self.barcode_filter.clear()
+                        
+    def update_ref_panel_mappings(self):
+        """Update ref and panel mappings separately"""
+        try:
+            # Build ref mappings
+            for pos_node in self.xml_root.findall(".//PlacePositions/PlacePosition"):
+                pos_id = pos_node.get('Id')
+                name = pos_node.findtext('Name')
+                if pos_id and name:
+                    if name not in self.ref_mapping:
+                        self.ref_mapping[name] = set()
+                        self.ref_items.append(name)
+                    self.ref_mapping[name].add(pos_id)
+
+            # Build panel mappings
+            for panel in self.xml_root.findall(".//SubBoards/SubBoard/ChildImage/ChildImages/ChildImage/ChildImages/ChildImage"):
+                panel_name = panel.findtext("Name")
+                if panel_name:
+                    for pos in panel.findall("PlacePositions/PlacePosition"):
+                        pos_id = pos.get("Id")
+                        if pos_id:
+                            if panel_name not in self.panel_mapping:
+                                self.panel_mapping[panel_name] = set()
+                                self.panel_items.append(panel_name)
+                            self.panel_mapping[panel_name].add(pos_id)
+
+            # Update UI lists
+            self.ref_list.addItems(sorted(self.ref_items))
+            self.panel_list.addItems(sorted(self.panel_items))
+            
+            # Enable filters
+            self.ref_filter.setEnabled(True)
+            self.panel_filter.setEnabled(True)
+            
+        except Exception as e:
+            print(f"Error updating mappings: {e}")
 
     def show_barcode_context_menu(self, position):
-        """Hiển thị context menu khi click chuột phải vào barcode_list"""
+        """Show context menu for barcode list"""
         menu = QMenu()
-        
-        # Thêm action xóa item đang chọn
-        delete_action = None
         current_item = self.barcode_list.currentItem()
-        if current_item:
-            delete_action = menu.addAction("Delete Selected Item")
         
-        # Thêm action xóa tất cả
-        clear_all_action = None
-        if self.barcode_list.count() > 0:
-            clear_all_action = menu.addAction("Delete All Items")
+        # Copy action
+        copy_action = menu.addAction("Copy Current Barcode")
+        copy_action.setEnabled(current_item is not None)
         
-        # Hiện context menu
-        action = menu.exec_(self.barcode_list.mapToGlobal(position))
+        # Clear all action
+        clear_action = menu.addAction("Clear All Barcodes")
+        clear_action.setEnabled(self.barcode_list.count() > 0)
         
-        if action:
-            if action == delete_action:
-                current_row = self.barcode_list.currentRow()
-                if current_row >= 0:
-                    # Xóa khỏi các danh sách
-                    self.barcode_items.pop(current_row)
-                    self.xml_files.pop(current_row)
-                    self.xml_roots.pop(current_row)
-                    
-                    # Xóa khỏi UI
-                    self.barcode_list.takeItem(current_row)
-                    
-                    # Reset các list và bảng
-                    self.ref_list.clear()
-                    self.panel_list.clear()
-                    self.clear_pickup_placement_tables()
-                    
-                    # Cập nhật đường dẫn file và chọn item mới
-                    if self.xml_files:
-                        self.footer_label.setText(f"Path: {', '.join(self.xml_files)}")
-                        
-                        # Xác định row mới để chọn
-                        new_row = min(current_row, self.barcode_list.count() - 1)
-                        
-                        # Cập nhật xml_root và chọn item mới
-                        if new_row >= 0:
-                            self.xml_root = self.xml_roots[new_row]
-                            self.barcode_list.setCurrentRow(new_row)  # Trigger currentRowChanged
-                            
-                            # Cập nhật dữ liệu cho item mới được chọn
-                            root = self.xml_root
-                            time_node = root.find(".//BoardHistory/CreationTime")
-                            machine_node = root.find(".//MachineId")
-                            head_node = root.find(".//PlaceHeads/PlaceHead")
-                            lane_node = root.find(".//Lane")
-
-                            # Cập nhật bảng Pickup
-                            if hasattr(self, "pickup_table"):
-                                if time_node is not None:
-                                    self.pickup_table.setItem(self.pickup_time_row, 1, 
-                                        QTableWidgetItem(time_node.text))
-                                if machine_node is not None:
-                                    self.pickup_table.setItem(self.pickup_machine_row, 1,
-                                        QTableWidgetItem(machine_node.text))
-                                if head_node is not None:
-                                    self.pickup_table.setItem(self.pickup_head_row, 1,
-                                        QTableWidgetItem(head_node.get("Id")))
-
-                            # Cập nhật bảng Placement
-                            if hasattr(self, "placement_table"):
-                                if time_node is not None:
-                                    self.placement_table.setItem(self.placement_time_row, 1,
-                                        QTableWidgetItem(time_node.text))
-                                if machine_node is not None:
-                                    self.placement_table.setItem(self.placement_machine_row, 1,
-                                        QTableWidgetItem(machine_node.text))
-                                if lane_node is not None:
-                                    self.placement_table.setItem(self.placement_lane_row, 1,
-                                        QTableWidgetItem(lane_node.text))
-                                if head_node is not None:
-                                    self.placement_table.setItem(self.placement_head_row, 1,
-                                        QTableWidgetItem(head_node.get("Id")))
-
-                            # Cập nhật ref và panel mapping
-                            self.update_ref_panel_mapping(root)
-                    else:
-                        self.footer_label.setText("by DVA")
-                        self.xml_root = None
-
-            elif action == clear_all_action:
-                # Xóa tất cả items
-                self.barcode_items.clear()
-                self.xml_files.clear()
-                self.xml_roots.clear()
-                self.xml_root = None  # Reset xml_root
-                if hasattr(self, 'xml_data'):
-                    self.xml_data.clear()
+        # Show menu and handle actions
+        action = menu.exec_(self.barcode_list.viewport().mapToGlobal(position))
+        
+        if action == copy_action and current_item:
+            QApplication.clipboard().setText(current_item.text())
+            QToolTip.showText(QCursor.pos(), "Copied!")
+        elif action == clear_action:
+            reply = QMessageBox.question(
+                self, 
+                'Clear All Barcodes',
+                'Are you sure you want to clear all barcodes?',
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
             
-                # Xóa khỏi UI
+            if reply == QMessageBox.Yes:
+                # Clear everything
                 self.barcode_list.clear()
                 self.ref_list.clear()
                 self.panel_list.clear()
+                self.xml_data.clear()
+                self.barcode_items.clear()
                 self.clear_pickup_placement_tables()
                 
-                # Reset footer
-                self.footer_label.setText("by DVA")
-
-    def update_ref_panel_mapping(self, root):
-        """Cập nhật ref và panel mapping từ XML root"""
-        self.ref_items = []
-        self.panel_items = []
-        self.ref_mapping = {}
-        self.panel_mapping = {}
-
-        # Cập nhật ref_mapping
-        for pos_node in root.findall(".//PlacePositions/PlacePosition"):
-            name_node = pos_node.find("Name")
-            id_attr = pos_node.get("Id")
-            if name_node is not None and name_node.text and id_attr:
-                self.ref_mapping.setdefault(name_node.text, []).append(id_attr)
-                if name_node.text not in self.ref_items:
-                    self.ref_items.append(name_node.text)
-
-        # Cập nhật panel_mapping
-        for child_img_node in root.findall(".//SubBoards/SubBoard/ChildImage/ChildImages/ChildImage/ChildImages/ChildImage"):
-            name_node = child_img_node.find("Name")
-            pos_nodes = child_img_node.findall("PlacePositions/PlacePosition")
-            for pos_node in pos_nodes:
-                id_attr = pos_node.get("Id")
-                if name_node is not None and name_node.text and id_attr:
-                    self.panel_mapping.setdefault(name_node.text, []).append(id_attr)
-                    if name_node.text not in self.panel_items:
-                        self.panel_items.append(name_node.text)
-
-        # Cập nhật UI
-        self.ref_list.clear()
-        self.ref_list.addItems(self.ref_items)
-        self.panel_list.clear()
-        self.panel_list.addItems(self.panel_items)
+                # Reset labels
+                self.ref_label.setText("Ref")
+                self.panel_label.setText("Panel")
+                self.barcode_label.setText("Barcode")
+                
+                # Disable filters
+                self.barcode_filter.setEnabled(False)
+                self.ref_filter.setEnabled(False)
+                self.panel_filter.setEnabled(False)
+                
+                # Clear filters
+                self.barcode_filter.clear()
+                self.ref_filter.clear()
+                self.panel_filter.clear()
