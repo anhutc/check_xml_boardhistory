@@ -525,8 +525,11 @@ class MainWindow(QMainWindow):
                                             QTableWidgetItem(component_name))
                                         self.pickup_table.setItem(self.pickup_repick_row, 1,
                                             QTableWidgetItem(component_node.findtext("RetryCount", "")))
-                                        self.pickup_table.setItem(self.pickup_track_row, 1,
-                                            QTableWidgetItem(component_node.findtext("Pick/FeederData/locationKey", "")))
+                                        
+                                        ram_track = component_node.findtext("Pick/FeederData/locationKey", "")
+                                        if ram_track and len(ram_track) >= 4:
+                                            ram_track = ram_track[2:4]
+                                        self.pickup_table.setItem(self.pickup_track_row, 1, QTableWidgetItem(ram_track))
                                                     
                                         ram_pitch = component_node.findtext("Pick/FeederData/pitch", "")
                                         if ram_pitch:
