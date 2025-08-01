@@ -836,3 +836,9 @@ class MainWindow(QMainWindow):
                 self.barcode_filter.clear()
                 self.ref_filter.clear()
                 self.panel_filter.clear()
+                
+                # Clear mappings
+                self.ref_mapping.clear()
+                self.panel_mapping.clear()
+                self.ref_items.clear()
+                self.panel_items.clear()
