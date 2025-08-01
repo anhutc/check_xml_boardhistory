@@ -403,21 +403,13 @@ class MainWindow(QMainWindow):
                     
                     # Get barcode
                     barcode = root.findtext(".//Barcode", "")
-                    if barcode:
-                        unique_key = f"{board_id}__{barcode}"
-                        if unique_key not in self.barcode_items:
-                            self.barcode_items.append(unique_key)
-                            self.xml_data[unique_key] = {
-                                'file_path': file_path,
-                                'basic_info': basic_info
-                            }
-                    else:
-                        QMessageBox.warning(
-                            self,
-                            "Invalid File",
-                            f"File {os.path.basename(file_path)} does not contain a barcode.",
-                            QMessageBox.Ok
-                        )
+                    unique_key = f"{board_id}__{barcode}"
+                    if unique_key not in self.barcode_items:
+                        self.barcode_items.append(unique_key)
+                        self.xml_data[unique_key] = {
+                            'file_path': file_path,
+                            'basic_info': basic_info
+                        }
                         
                 except Exception as e:
                     QMessageBox.critical(
