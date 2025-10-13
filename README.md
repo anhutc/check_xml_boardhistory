@@ -15,4 +15,4 @@
 | :--- | :--- |
 | `[ASM BoardHistory V1.1.1]` | <ul><li>Improve the content of displayed results.</li></ul> |
 | `[ASM BoardHistory V1.1.0]` | <ul><li>Optimize application.</li><li>Fix High RAM.</li></ul> |
-| `[ASM BoardHistory V1.0.0]` <ul><li>First version release.</li></ul> |
+| `[ASM BoardHistory V1.0.0]` | <ul><li>First version release.</li></ul> |
