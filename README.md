@@ -6,7 +6,7 @@
 
 ### 🚀 User Manual
 
-1.  **Download:** Download the app <a href='https://github.com/anhutc/check_xml_boardhistory/releases/download/ASMBoardHistory/ASM.BoardHistory.exe'>hare</a>.
+1.  **Download:** Download the app <a href='https://github.com/anhutc/check_xml_boardhistory/releases/download/ASMBoardHistory/ASM.BoardHistory.exe'>here</a>.
 2.  **Use the app:** Open the file "ASM BoardHistory.exe" then import the xml file.
 
 ## 📚 Update
