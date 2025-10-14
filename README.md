@@ -1,4 +1,3 @@
-```markdown
 # ASM BoardHistory Viewer
 
 A professional desktop application for viewing and analyzing ASM board history XML files with an intuitive graphical interface.
