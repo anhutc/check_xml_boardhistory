@@ -1,18 +1,41 @@
+# ASM BoardHistory Viewer
 
-## 📱 Application Info
+A professional desktop application for viewing and analyzing ASM board history XML files with an intuitive graphical interface.
 
-**[ASM BoardHistory]** This is an application to look up information on XML files (BoardHistory) of ASM machines.
+![Python](https://img.shields.io/badge/Python-3.6+-blue.svg)
+![PyQt5](https://img.shields.io/badge/PyQt5-5.15+-green.svg)
+![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-lightgrey.svg)
 
+## 📖 Overview
 
-### 🚀 User Manual
+ASM BoardHistory Viewer is a powerful tool designed to parse, analyze, and visualize ASM machine board history data from XML files. It provides detailed insights into Pickup and Placement operations with a modern, user-friendly interface.
 
-1.  **Download:** Download the app <a href='https://github.com/anhutc/check_xml_boardhistory/releases/download/ASMBoardHistory/ASM.BoardHistory.1.1.1.exe'>here</a>.
-2.  **Use the app:** Open the file "ASM BoardHistory.exe" then import the xml file.
+## ✨ Features
 
-## 📚 Update
+### 🔍 Data Import & Management
+- **Multi-file Import**: Import multiple XML files simultaneously
+- **Smart Filtering**: Real-time filtering for barcodes, references, and panels
+- **Data Persistence**: Maintains imported file history across sessions
 
-| Vision | Changed |
-| :--- | :--- |
-| `[ASM BoardHistory V1.1.1]` | <ul><li>Improve the content of displayed results.</li></ul> |
-| `[ASM BoardHistory V1.1.0]` | <ul><li>Optimize application.</li><li>Fix High RAM.</li></ul> |
-| `[ASM BoardHistory V1.0.0]` | <ul><li>First version release.</li></ul> |
+### 📊 Detailed Analysis
+- **Pickup Information**: Comprehensive pickup data including time, machine, head, segment, nozzle, and component details
+- **Placement Details**: Complete placement information with measurements, vacuum data, and error analysis
+- **Visual Indicators**: Color-coded data presentation for better readability
+
+### 🎨 Modern Interface
+- **Responsive Design**: Clean, modern UI with gradient themes
+- **Progress Tracking**: Visual progress bar for file import operations
+- **Context Menus**: Right-click functionality for quick actions
+- **Copy Functionality**: Easy data copying from tables
+
+## 🚀 Installation
+
+### Prerequisites
+- Python 3.6 or higher
+- PyQt5 library
+
+### Quick Start
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/anhutc/asm-boardhistory-viewer.git
+   cd asm-boardhistory-viewer
