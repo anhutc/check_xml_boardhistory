@@ -30,7 +30,7 @@ ASM BoardHistory Viewer is a powerful tool designed to parse, analyze, and visua
 ## 🚀 Installation
 
 ### Quick Start
-- Download ASM BoardHistory: [@releases](https://github.com/anhutc/check_xml_boardhistory/releases)
+- Download ASM BoardHistory: [releases (ASM.BoardHistory.x.x.x.exe)](https://github.com/anhutc/check_xml_boardhistory/releases)
 
 ### Getting Started with Python
 1. **Prerequisites**
