@@ -5,11 +5,11 @@ from PyQt5.QtWidgets import (
     QPushButton, QFileDialog, QListWidget, QLabel,
     QTableWidget, QTableWidgetItem, QHeaderView,
     QLineEdit, QMessageBox, QWidget, QApplication,
-    QToolTip,
+    QToolTip, QProgressBar
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QCursor
-from PyQt5.QtWidgets import  QMenu
+from PyQt5.QtWidgets import QMenu
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -18,7 +18,7 @@ class MainWindow(QMainWindow):
         self.init_ui()
 
     def init_variables(self):
-        self.setWindowTitle("ASM BoardHistory V1.1.1 (https://anhutc.github.io)")
+        self.setWindowTitle("ASM BoardHistory")
         self.setFixedSize(1200, 920)
         self.move(
             (QApplication.desktop().screen().width() - self.width()) // 2, 0
@@ -45,7 +45,6 @@ class MainWindow(QMainWindow):
         
         detail_panel = self.create_detail_panel()
         main_layout.addWidget(detail_panel, 70)
-    
 
     def create_find_board_panel(self):
         group = QGroupBox()
@@ -146,20 +145,21 @@ class MainWindow(QMainWindow):
         self.barcode_list.customContextMenuRequested.connect(self.show_barcode_context_menu)
         
         return group
+    
     def create_detail_panel(self):
         group = QGroupBox()
         layout = QVBoxLayout(group)
         layout.setSpacing(10)
-        layout.setContentsMargins(0, 10, 10, 30)
+        layout.setContentsMargins(0, 10, 10, 10)
         
         self.pickup_table = QTableWidget(15, 2)
-        self.placement_table = QTableWidget(19, 2)
+        self.placement_table = QTableWidget(18, 2)
         
         group.setStyleSheet("""
             QGroupBox {
-                background: transparent;
-                border: none;
-                padding: 0px;
+                background: white;
+                border-radius: 10px;
+                padding: 20px 15px 5px 15px;
             }
         """)
 
@@ -167,24 +167,10 @@ class MainWindow(QMainWindow):
             QTableWidget {
                 background: white;
                 border: none;
-                gridline-color: #ecf0f1;
-            }
-            QTableWidget::item {
-                padding: 5px;
-                border: none;
-                color: #2c3e50;
-                font-size: 50px;
-            }
-            QTableWidget::item:selected {
-                background: rgba(52, 152, 219, 0.1);
-                color: #2c3e50;
             }
             QHeaderView::section {
-                background: #34495e;
-                color: white;
                 font-weight: bold;
-                font-size: 13px;
-                padding: 8px;
+                font-size: 14px;
                 border: none;
             }
         """
@@ -208,13 +194,22 @@ class MainWindow(QMainWindow):
         pickup_group = QGroupBox("Pickup")
         pickup_group.setStyleSheet("""
             QGroupBox {
-                font-size: 18px;
                 font-weight: bold;
-                padding: 20px;
+                font-size: 20px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top center;
+                padding: 5px 200px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #2196F3, stop:1 #1976D2);
+                color: white;
+                font-weight: bold;
+                font-size: 20px;
             }
         """)
         pickup_layout = QVBoxLayout(pickup_group)
-        pickup_layout.setContentsMargins(5, 5, 5, 5)
+        pickup_layout.setContentsMargins(8, 25, 8, 8)
         self.setup_pickup_table()
         pickup_layout.addWidget(self.pickup_table)
         tables_layout.addWidget(pickup_group)
@@ -222,21 +217,69 @@ class MainWindow(QMainWindow):
         placement_group = QGroupBox("Placement")
         placement_group.setStyleSheet("""
             QGroupBox {
-                font-size: 18px;
                 font-weight: bold;
-                padding: 20px;
+                font-size: 20px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top center;
+                padding: 5px 200px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #E91E63, stop:1 #D81B60);
+                color: white;
+                font-weight: bold;
+                font-size: 20px;
             }
         """)
         placement_layout = QVBoxLayout(placement_group)
-        pickup_layout.setContentsMargins(5, 5, 5, 5)
+        placement_layout.setContentsMargins(8, 25, 8, 8)
         self.setup_placement_table()
         placement_layout.addWidget(self.placement_table)
         tables_layout.addWidget(placement_group)
         
         layout.addLayout(tables_layout)
         
+        bottom_container = QWidget()
+        bottom_container.setFixedHeight(30)
+        bottom_layout = QVBoxLayout(bottom_container)
+        bottom_layout.setContentsMargins(0, 5, 0, 5)
+        bottom_layout.setSpacing(0)
+        
+        self.detail_progress_bar = QProgressBar()
+        self.detail_progress_bar.setVisible(False)
+        self.detail_progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #bdc3c7;
+                border-radius: 5px;
+                text-align: center;
+                background: white;
+                height: 20px;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #2196F3, stop:1 #E91E63);
+                border-radius: 3px;
+            }
+        """)
+        bottom_layout.addWidget(self.detail_progress_bar)
+        
+        self.copyright_label = QLabel("ASM BoardHistory V1.1.1 - https://anhutc.github.io")
+        self.copyright_label.setAlignment(Qt.AlignCenter)
+        self.copyright_label.setStyleSheet("""
+            QLabel {
+                color: #7f8c8d;
+                font-size: 12px;
+                font-style: bold;
+            }
+        """)
+        bottom_layout.addWidget(self.copyright_label)
+        
+        # Thêm container vào layout chính
+        layout.addWidget(bottom_container)
+        
         return group
-
+    
+    
     def setup_pickup_table(self):
         self.pickup_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.pickup_table.setSelectionMode(QTableWidget.NoSelection)
@@ -244,6 +287,8 @@ class MainWindow(QMainWindow):
     
         self.pickup_table.setHorizontalHeaderLabels(["Process", "Data"])
         header = self.pickup_table.horizontalHeader()
+        header.setVisible(False)
+        self.pickup_table.show()
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
         
@@ -256,15 +301,12 @@ class MainWindow(QMainWindow):
         self.pickup_repick_row = 6
         self.pickup_track_row = 7
         self.pickup_pitck_row = 8
-        #self.pickup_feeder_time_row = 
         self.pickup_z_down_row = 9
         self.pickup_z_up_row = 10
         self.pickup_dp_angle_row = 11
         self.pickup_vacuum_before_row = 12
         self.pickup_vacuum_after_row = 13
         self.pickup_holding_row = 14
-        #self.pickup_error_in_z_row = 
-        #self.pickup_stay_time_row = 
         self.pickup_measure_height_row = 15
         
         row_labels = [
@@ -283,16 +325,12 @@ class MainWindow(QMainWindow):
         
         self.placement_table.setHorizontalHeaderLabels(["Process", "Data"])
         header = self.placement_table.horizontalHeader()
+        header.setVisible(False)
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
         
         self.placement_time_row = 0
-        #self.placement_machine_row = 
-        #self.placement_head_row = 
         self.placement_lane_row = 1
-        #self.placement_segment_row = 
-        #self.placement_nozzle_row = 
-        #self.placement_conponent_row = 
         self.placement_measure_x_row = 2
         self.placement_measure_y_row = 3
         self.placement_measure_phi_row = 4
@@ -308,9 +346,6 @@ class MainWindow(QMainWindow):
         self.placement_airkiss_pro_row = 14
         self.placement_airkiss_machine_row = 15
         self.placement_airkiss_measured_row = 16
-        #self.placement_airkiss_time_row = 17
-        #self.placement_stay_time_row = 
-        #self.placement_order_current_machine_row = 
         self.placement_recipe_row = 17
         
         row_labels = [
@@ -332,10 +367,18 @@ class MainWindow(QMainWindow):
         )
         
         if files:
+            self.detail_progress_bar.setVisible(True)
+            self.copyright_label.setVisible(False)
+            self.detail_progress_bar.setMaximum(len(files))
+            self.detail_progress_bar.setValue(0)
+            
             current_barcode = self.barcode_list.currentItem().text() if self.barcode_list.currentItem() else None
             
-            for file_path in files:
+            for i, file_path in enumerate(files):
                 try:
+                    self.detail_progress_bar.setValue(i + 1)
+                    QApplication.processEvents()
+
                     tree = ET.parse(file_path)
                     root = tree.getroot()
                     
@@ -376,6 +419,9 @@ class MainWindow(QMainWindow):
                         QMessageBox.Ok
                     )
 
+            self.detail_progress_bar.setVisible(False)
+            self.copyright_label.setVisible(True)
+            
             self.barcode_list.clear()
             self.barcode_list.addItems(sorted(self.barcode_items))
             
@@ -466,8 +512,6 @@ class MainWindow(QMainWindow):
                                     self.pickup_table.setItem(self.pickup_pitck_row, 1,
                                         QTableWidgetItem(ram_pitch.replace(".", "")))
 
-                                #self.pickup_table.setItem(self.pickup_feeder_time_row, 1,
-                                    #QTableWidgetItem("N/A"))
                                 self.pickup_table.setItem(self.pickup_z_down_row, 1,
                                     QTableWidgetItem(component_node.findtext("Pick/ZMovementDown/TravelProfile", "")))
                                 self.pickup_table.setItem(self.pickup_z_up_row, 1,
@@ -480,21 +524,10 @@ class MainWindow(QMainWindow):
                                     QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/MeasuredAfter", "")))
                                 self.pickup_table.setItem(self.pickup_holding_row, 1,
                                     QTableWidgetItem(component_node.findtext("Pick/VacuumSystem/HoldingCircuit", "")))
-                                #self.pickup_table.setItem(self.pickup_error_in_z_row, 1,
-                                    #QTableWidgetItem("N/A"))
-                                #self.pickup_table.setItem(self.pickup_stay_time_row, 1,
-                                    #QTableWidgetItem("N/A"))
                                 self.pickup_table.setItem(self.pickup_measure_height_row, 1,
                                     QTableWidgetItem(component_node.findtext("Pick/ComponentSensor/MeasuredHeight", "")))
 
                             if hasattr(self, "placement_table"):
-                                #self.placement_table.setItem(self.placement_segment_row, 1,
-                                    #QTableWidgetItem(component_node.findtext("Segment", "")))
-                                #self.placement_table.setItem(self.placement_nozzle_row, 1,
-                                    #QTableWidgetItem(component_node.findtext("Nozzle", "")))
-                                #self.placement_table.setItem(self.placement_conponent_row, 1,
-                                    #QTableWidgetItem(component_name if 'component_name' in locals() else ""))
-                                
                                 measure_x = component_node.findtext("Measure/MeasuredPose/X", "")
                                 if measure_x:
                                     try:
@@ -554,12 +587,6 @@ class MainWindow(QMainWindow):
                                     QTableWidgetItem(component_node.findtext("Place/VacuumSystem/ParamThresholdDown", "")))
                                 self.placement_table.setItem(self.placement_airkiss_measured_row, 1,
                                     QTableWidgetItem(component_node.findtext("Place/VacuumSystem/MeasuredDown", "")))
-                                #self.placement_table.setItem(self.placement_airkiss_time_row, 1,
-                                    #QTableWidgetItem("N/A"))
-                                #self.placement_table.setItem(self.placement_stay_time_row, 1,
-                                    #QTableWidgetItem("N/A"))
-                                #self.placement_table.setItem(self.placement_order_current_machine_row, 1,
-                                    #QTableWidgetItem("N/A"))
                                     
                                 recipe_node = self.xml_root.find(".//Recipe")
                                 self.placement_table.setItem(self.placement_recipe_row, 1,
@@ -628,10 +655,6 @@ class MainWindow(QMainWindow):
                         if hasattr(self, "placement_table"):
                             self.placement_table.setItem(self.placement_time_row, 1,
                                 QTableWidgetItem(basic_info.get('EndPlacing', '')))
-                            #self.placement_table.setItem(self.placement_machine_row, 1,
-                                #QTableWidgetItem(basic_info.get('MachineId', '')))
-                            #self.placement_table.setItem(self.placement_head_row, 1,
-                                #QTableWidgetItem(basic_info.get('GantryId', '')))
                             self.placement_table.setItem(self.placement_lane_row, 1,
                                 QTableWidgetItem(basic_info.get('Lane', '')))
 
@@ -673,6 +696,11 @@ class MainWindow(QMainWindow):
             self.barcode_filter.clear()
                         
     def update_ref_panel_mappings(self):
+        
+        panel_type = self.xml_root.findall(".//SubBoards/SubBoard/ChildImage/ChildImages/ChildImage/ChildImages/ChildImage")
+
+        if not panel_type:
+            panel_type = self.xml_root.findall(".//SubBoards/SubBoard/ChildImage/ChildImages/ChildImage")
         try:
             for pos_node in self.xml_root.findall(".//PlacePositions/PlacePosition"):
                 pos_id = pos_node.get('Id')
@@ -683,7 +711,7 @@ class MainWindow(QMainWindow):
                         self.ref_items.append(name)
                     self.ref_mapping[name].add(pos_id)
 
-            for panel in self.xml_root.findall(".//SubBoards/SubBoard/ChildImage/ChildImages/ChildImage/ChildImages/ChildImage"):
+            for panel in panel_type:
                 panel_name = panel.findtext("Name")
                 if panel_name:
                     for pos in panel.findall("PlacePositions/PlacePosition"):
