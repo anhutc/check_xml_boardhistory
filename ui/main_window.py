@@ -5,11 +5,21 @@ from PyQt5.QtWidgets import (
     QPushButton, QFileDialog, QListWidget, QLabel,
     QTableWidget, QTableWidgetItem, QHeaderView,
     QLineEdit, QMessageBox, QWidget, QApplication,
-    QToolTip, QProgressBar
+    QToolTip, QProgressBar, QDialog, QTextEdit, QMenu
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QCursor
-from PyQt5.QtWidgets import QMenu
+
+class ClickableLabel(QLabel):
+    clicked = pyqtSignal()
+    
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self.setCursor(QCursor(Qt.PointingHandCursor))
+        
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -240,7 +250,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(tables_layout)
         
         bottom_container = QWidget()
-        bottom_container.setFixedHeight(30)
+        bottom_container.setFixedHeight(40)
         bottom_layout = QVBoxLayout(bottom_container)
         bottom_layout.setContentsMargins(0, 5, 0, 5)
         bottom_layout.setSpacing(0)
@@ -263,18 +273,23 @@ class MainWindow(QMainWindow):
         """)
         bottom_layout.addWidget(self.detail_progress_bar)
         
-        self.copyright_label = QLabel("ASM BoardHistory V1.1.1 - https://anhutc.github.io")
+        self.copyright_label = ClickableLabel("Update ASM BoardHistory V1.1.1 - https://anhutc.github.io")
         self.copyright_label.setAlignment(Qt.AlignCenter)
         self.copyright_label.setStyleSheet("""
-            QLabel {
+            ClickableLabel {
                 color: #7f8c8d;
                 font-size: 12px;
-                font-style: bold;
+                font-weight: bold;
+                padding: 5px;
+            }
+            ClickableLabel:hover {
+                color: #D81B60;
+                text-decoration: underline;
             }
         """)
+        self.copyright_label.clicked.connect(self.show_version_history)
         bottom_layout.addWidget(self.copyright_label)
         
-        # Thêm container vào layout chính
         layout.addWidget(bottom_container)
         
         return group
@@ -357,6 +372,10 @@ class MainWindow(QMainWindow):
         ]
         for i, label in enumerate(row_labels):
             self.placement_table.setItem(i, 0, QTableWidgetItem(label))
+
+    def show_version_history(self):
+        dialog = VersionHistoryDialog(self)
+        dialog.exec_()
 
     def import_xml(self):
         files, _ = QFileDialog.getOpenFileNames(
@@ -779,3 +798,48 @@ class MainWindow(QMainWindow):
                 self.panel_mapping.clear()
                 self.ref_items.clear()
                 self.panel_items.clear()
+
+class VersionHistoryDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("ASM BoardHistory - Version History")
+        self.setFixedSize(500, 400)
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        
+        self.text_edit = QTextEdit()
+        self.text_edit.setReadOnly(True)
+        self.load_version_history()
+        layout.addWidget(self.text_edit)
+        
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.close)
+        layout.addWidget(close_btn)
+
+    def load_version_history(self):
+        version_history = """        
+        <h3>Version 1.1.1 (Current)</h3>
+        <ul>
+            <li>Add version history view feature</li>
+            <li>Improved user interface</li>
+            <li>Fix content display error</li>
+            <li>Fix x-out placement data</li>
+        </ul>
+        
+        <h3>Version 1.1.0</h3>
+        <ul>
+            <li>Fix high RAM error when importing multiple files</li>
+        </ul>
+        
+        <h3>Version 1.0.0</h3>
+        <ul>
+            <li>First version</li>
+            <li>Read and parse XML Board History file</li>
+            <li>Display basic Pickup and Placement information</li>
+        </ul>
+        
+        <p><em>Application developed by DANG VAN ANH <a href="https://anhutc.github.io">https://anhutc.github.io</a></em></p>
+        """
+        self.text_edit.setHtml(version_history)
