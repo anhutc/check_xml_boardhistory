@@ -26,27 +26,27 @@ ASM BoardHistory Viewer is a powerful tool designed to parse, analyze, and visua
 - **Responsive Design**: Clean, modern UI with gradient themes
 - **Progress Tracking**: Visual progress bar for file import operations
 - **Context Menus**: Right-click functionality for quick actions
-- **Copy Functionality**: Easy data copying from tables
 
 ## 🚀 Installation
 
-### Prerequisites
+### Quick Start
+- Download ASM BoardHistory: [@releases](https://github.com/anhutc/check_xml_boardhistory/releases)
+
+### Getting Started with Python
+1. **Prerequisites**
 - Python 3.6 or higher
 - PyQt5 library
-
-### Quick Start
-1. **Clone the repository**
+2. **Clone the repository**
    ```bash
-   git clone https://github.com/anhutc/asm-boardhistory-viewer.git
-   cd asm-boardhistory-viewer
+   git clone https://github.com/anhutc/check_xml_boardhistory.git
    ```
 
-2. **Install dependencies**
+3. **Install dependencies**
    ```bash
    pip install PyQt5
    ```
 
-3. **Run the application**
+4. **Run the application**
    ```bash
    python main.py
    ```
@@ -96,20 +96,6 @@ The application processes standard ASM Board History XML files containing:
 - **PyQt5** - GUI framework
 - **XML.etree** - XML parsing library
 
-## 🤝 Contributing
-
-We welcome contributions! Please feel free to submit pull requests, report bugs, or suggest new features.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 👨‍💻 Developer
 
 **DANG VAN ANH**  
@@ -123,4 +109,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **If you find this tool useful, please consider giving it a ⭐ on GitHub!**
 
 </div>
-```

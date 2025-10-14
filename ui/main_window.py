@@ -625,12 +625,6 @@ class MainWindow(QMainWindow):
             for row in range(self.placement_table.rowCount()):
                 self.placement_table.setItem(row, 1, QTableWidgetItem(""))
 
-    def copy_cell_value(self, item):
-        if item and item.column() == 1:
-            value = item.text()
-            QApplication.clipboard().setText(value)
-            QToolTip.showText(QCursor.pos(), "Copied!")
-
     def on_barcode_selected(self, index):
         self.clear_pickup_placement_tables()
         
