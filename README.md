@@ -1,5 +1,4 @@
-# ASM BoardHistory Viewer
-
+# ASM BoardHistory
 A professional desktop application for viewing and analyzing ASM board history XML files with an intuitive graphical interface.
 
 ![Python](https://img.shields.io/badge/Python-3.6+-blue.svg)
